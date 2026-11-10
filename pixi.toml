@@ -38,6 +38,10 @@ depends-on = ["version"]
 cmd = "quarto render report/dashboard.qmd"
 depends-on = ["version"]
 
+[tasks.render]
+cmd = "quarto publish gh-pages report/dashboard.qmd"
+depends-on = ["render"]
+
 # Default environment for R-based pipeline
 [dependencies]
 snakemake = ">=9.15.0,<10"

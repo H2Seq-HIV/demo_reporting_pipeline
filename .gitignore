@@ -7,7 +7,7 @@
 
 # pipeline outputs
 logs/
-/results/*/*
+results/*/*
 
 # Keep reference
 !resources/HXB2_pol.fasta
