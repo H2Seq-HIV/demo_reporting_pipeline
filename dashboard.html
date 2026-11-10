@@ -313,7 +313,7 @@ div.csl-indent {
     <a href="#"><img src="assets/kirby-logo.png" alt="" class="navbar-logo dark-content d-inline-block"></a>
       <div class="navbar-title">
         <div class="navbar-title-text"><a href="#">H2Seq HIV Report<br><small><em>SIMULATED DATA 2019-2020</em></small></a></div>
-        <div class="navbar-subtitle">Pipeline version: v1.0.0-1-g9cf5400<br>Created: 2026-11-10</div>
+        <div class="navbar-subtitle">Pipeline version: v1.0.1<br>Created: 2026-11-10</div>
         
       </div>
     </div>
@@ -3468,8 +3468,8 @@ grid-auto-rows: minmax(0, 1fr);">
 <div id="fig-pipeline-flowchart" class="cell-output-display quarto-float quarto-figure quarto-figure-center html-fill-item html-fill-container">
 <figure class="quarto-float quarto-float-fig figure html-fill-item html-fill-container">
 <div aria-describedby="fig-pipeline-flowchart-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca" class="html-fill-item html-fill-container">
-<div class="grViz html-widget html-fill-item html-fill-container" id="htmlwidget-4011419ace92df0596ec" style="width:100%;height:406px;"></div>
-<script type="application/json" data-for="htmlwidget-4011419ace92df0596ec">{"x":{"diagram":"digraph pipeline {\n  rankdir=TB;\n  node [shape=box, style=\"filled,rounded\", fillcolor=\"#f0f0f0\", fontname=\"Helvetica\"];\n  \"Analysis\" [shape=ellipse, style=\"filled\", fillcolor=\"#d4edda\"];\n  edge [fontname=\"Helvetica\", fontsize=14];\n  \"Raw notifications\" [shape=ellipse, style=\"filled\", fillcolor=\"#004EA8\"];\n  \"Raw sequences\" [shape=ellipse, style=\"filled\", fillcolor=\"#E61E78\"];\n  \"Raw notifications\" -> \"validate_notifications\" [label=\"349\", color=\"#004EA8\", fontcolor=\"#004EA8\"];\n  \"Raw sequences\" -> \"validate_sequences\" [label=\"349\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"validate_notifications\" -> \"link_sequences\" [label=\"349\", color=\"#004EA8\", fontcolor=\"#004EA8\"];\n  \"validate_sequences\" -> \"extract_transmitted\" [label=\"349\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"extract_transmitted\" -> \"link_sequences\" [label=\"345\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"link_sequences\" -> \"Analysis\" [label=\"345\"];\n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
+<div class="grViz html-widget html-fill-item html-fill-container" id="htmlwidget-9d9497460fc13965c76f" style="width:100%;height:406px;"></div>
+<script type="application/json" data-for="htmlwidget-9d9497460fc13965c76f">{"x":{"diagram":"digraph pipeline {\n  rankdir=TB;\n  node [shape=box, style=\"filled,rounded\", fillcolor=\"#f0f0f0\", fontname=\"Helvetica\"];\n  \"Analysis\" [shape=ellipse, style=\"filled\", fillcolor=\"#d4edda\"];\n  edge [fontname=\"Helvetica\", fontsize=14];\n  \"Raw notifications\" [shape=ellipse, style=\"filled\", fillcolor=\"#004EA8\"];\n  \"Raw sequences\" [shape=ellipse, style=\"filled\", fillcolor=\"#E61E78\"];\n  \"Raw notifications\" -> \"validate_notifications\" [label=\"349\", color=\"#004EA8\", fontcolor=\"#004EA8\"];\n  \"Raw sequences\" -> \"validate_sequences\" [label=\"349\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"validate_notifications\" -> \"link_sequences\" [label=\"349\", color=\"#004EA8\", fontcolor=\"#004EA8\"];\n  \"validate_sequences\" -> \"extract_transmitted\" [label=\"349\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"extract_transmitted\" -> \"link_sequences\" [label=\"345\", color=\"#E61E78\", fontcolor=\"#E61E78\"];\n  \"link_sequences\" -> \"Analysis\" [label=\"345\"];\n}","config":{"engine":"dot","options":null}},"evals":[],"jsHooks":[]}</script>
 </div>
 <figcaption class="quarto-float-caption-bottom quarto-float-caption quarto-float-fig" id="fig-pipeline-flowchart-caption-0ceaefa1-69ba-4598-a22c-09a6ac19f8ca">
 Figure&nbsp;6: Pipeline attrition by data stream. Arrow labels show the number of records entering each processing step.
@@ -3826,6 +3826,21 @@ Weaver, Steven, Vanessa M. Dávila Conn, Daniel Ji, Hannah Verdonk, Santiago Áv
 </bslib-tooltip><script data-bslib-card-init="">bslib.Card.initializeAllCards();</script></div>
 <div class="card cell html-fill-item html-fill-container bslib-card" data-bslib-card-init="" data-require-bs-caller="card()" data-full-screen="false">
 <div class="card-body html-fill-item html-fill-container">
+<div class="h4">
+November
+
+10,
+
+2026:
+
+v1.0.1
+</div>
+<div class="h5">
+Patch
+</div>
+<ul>
+<li>chore: <span class="emoji" data-emoji="wrench">🔧</span> initalise changelog and and tweak pixi tasks (9cf5400)</li>
+</ul>
 <div class="h4">
 October
 
