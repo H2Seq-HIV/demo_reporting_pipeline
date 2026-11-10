@@ -1,0 +1,52 @@
+# Changelog
+
+::: {.callout-tip}
+## About the changelog
+This reproduces the automated changelog of git commits. Terms such as 'feat:' and 'fix:' indicate the type of changes made in each commit. Versioning follows the Major.Minor.Patch convention. The code at the end of each description (e.g. 144d99a) refers to the specific git commit hash.
+:::
+
+<!-- Small wrapper that escapes hashes and inverts order for more recent first -->
+```{r}
+#| results: asis
+#| format: commonmark
+
+changelog <- readLines("../CHANGELOG.md", warn = FALSE)
+
+version_starts <- which(str_detect(changelog, "^## "))
+
+# Ensure newline before the first version heading in the header
+header <- if (version_starts[1] > 1) {
+  changelog[seq_len(version_starts[1] - 1)]
+} else {
+  character()
+}
+
+sections <- lapply(seq_along(version_starts), function(i) {
+  start <- version_starts[i]
+  end <- if (i < length(version_starts)) {
+    version_starts[i + 1] - 1
+  } else {
+    length(changelog)
+  }
+
+  changelog[start:end]
+})
+
+# Reverse version order
+sections <- rev(sections)
+
+# Ensure a blank line before each version heading
+sections <- lapply(sections, function(x) {
+  if (length(x) > 0 && x[1] != "") {
+    c("", x)
+  } else {
+    x
+  }
+})
+
+# Recombine and remove any leading blank lines
+changelog_reversed <- c(header, unlist(sections, use.names = FALSE))
+changelog_reversed <- sub("^$", "", changelog_reversed)
+
+knitr::asis_output(paste(changelog_reversed, collapse = "\n"))
+```

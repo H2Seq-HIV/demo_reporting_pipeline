@@ -1,0 +1,458 @@
+```{ojs}
+//| label: dr-setup
+//| output: false
+
+import { classRes, drugRes, mutRes, subtypeCounts, cutoff, linelist } from "_data.qmd"
+
+// Raw Arquero tables from imported row-level data
+drClassRaw = aq.table(classRes)
+drDrugRaw = aq.table(drugRes)
+drMutRaw = aq.table(mutRes)
+
+// Unique options for checkboxes
+drClassOptions = drClassRaw.dedupe("class").array("class").sort()
+drDrugOptions = drDrugRaw.dedupe("drug").array("drug").sort()
+drMutOptions = drMutRaw.dedupe("mutation").array("mutation").sort()
+
+```
+
+# Drug Resistance
+
+## {.toolbar}
+
+```{ojs}
+//| label: dr-time-bin
+viewof drTimeBin = Inputs.radio(
+  new Map([
+    ["Half-year", "half-year"],
+    ["Year", "year"],
+    ["Custom before/after", "split"]
+  ]),
+  { value: "half-year", label: "Time binning" }
+)
+
+```
+
+```{ojs}
+//| label: dr-split-date
+viewof drSplitDate = {
+  if (drTimeBin === "split") {
+    return Inputs.date({ label: "Split at:", value: cutoff })
+  }
+  const span = document.createElement("span")
+  span.value = null
+  return span
+}
+```
+
+```{ojs}
+//| label: dr-bin-apply-date-bins
+//| output: false
+
+// Apply time binning to each dataset.
+// Convert to object to avoid calling bindDate twice to define period & period_label
+drClassBinned = {
+  return aq.from(drClassRaw.objects().map(d => {
+    const bin = binDate(d.date_onset, drTimeBin, drSplitDate)
+    return { ...d, period: bin.period, period_label: bin.period_label }
+  }))
+}
+
+drDrugBinned = {
+  return aq.from(drDrugRaw.objects().map(d => {
+    const bin = binDate(d.date_onset, drTimeBin, drSplitDate)
+    return { ...d, period: bin.period, period_label: bin.period_label }
+  }))
+}
+
+drMutBinned = {
+  return aq.from(drMutRaw.objects().map(d => {
+    const bin = binDate(d.date_onset, drTimeBin, drSplitDate)
+    return { ...d, period: bin.period, period_label: bin.period_label }
+  }))
+}
+
+// Total sequences per period (denominator for res-rates).
+// Could be pre-computed in R if performance is an issue.
+drDenominators = {
+  return aq.from(
+    aq.table(linelist).objects().map(d => {
+      const bin = binDate(d.date_onset, drTimeBin, drSplitDate)
+      return { period: bin.period, period_label: bin.period_label }
+    })
+  )
+  .groupby("period", "period_label")
+  .rollup({ total: d => op.count() })
+}
+
+// Unique period options for min period selector
+drPeriods = drClassBinned
+  .select("period", "period_label")
+  .dedupe()
+  .orderby("period")
+
+drPeriodLabels = drPeriods.array("period_label")
+drPeriodValues = drPeriods.array("period")
+```
+
+```{ojs}
+//| label: dr-min-period
+
+viewof drMinPeriod = Inputs.select(
+  new Map(drPeriodLabels.map((l, i) => [l, drPeriodValues[i]])),
+  {
+    value: drPeriodValues.length > 10 ?
+      drPeriodValues[drPeriodValues.length - 10] :
+      drPeriodValues[0],
+    label: "Show data since"
+  }
+)
+```
+
+```{ojs}
+//| label: dr-aggregate
+//| output: false
+
+// Class: sum "resistant" per clas/period group
+drClassAgg = drClassBinned
+  .groupby("period", "period_label", "class")
+  .rollup({ n: d => op.sum(d.resistant) })
+  .orderby("period", "period_label", "class")
+
+// Drug: sum "resistant" per drug/period group
+drDrugAgg = drDrugBinned
+  .groupby("period", "period_label", "drug")
+  .rollup({ n: d => op.sum(d.resistant) })
+  .orderby("period", "period_label", "drug")
+
+// Mutation: count rows per mutation/period group
+drMutAgg = drMutBinned
+  .groupby("period", "period_label", "mutation")
+  .rollup({ n: d => op.count() })
+  .orderby("period", "period_label", "mutation")
+
+// Ordered period labels for plot facet domains
+drLabelOrder = drPeriods
+  .filter(aq.escape(d => d.period >= drMinPeriod))
+  .array("period_label")
+```
+
+## {.tabset}
+
+### Class
+
+#### {.sidebar}
+
+```{ojs}
+//| label: dr-class-form
+viewof drClassForm = Inputs.form({
+  barMode: Inputs.radio(["Grouped", "Stacked"], { label: "Bar mode", value: "Grouped" }),
+  selected: Inputs.checkbox(drClassOptions, { value: drClassOptions, label: "Select classes" })
+})
+```
+
+```{ojs}
+//| label: dr-class-filter
+//| output: false
+
+drClassCurrent = {
+  const selected = drClassForm.selected
+  return drClassAgg
+    .filter(aq.escape(d => d.period >= drMinPeriod))
+    .filter(aq.escape(d => selected.includes(d.class)))
+}
+```
+
+#### Row
+##### Class barplot {height="62.5%"}
+
+```{ojs}
+//| label: dr-class-barplot
+//| expandable: true
+
+{
+  if (drClassCurrent.numRows() === 0) return noData("No data to display.", { height: "200px" })
+
+  let data = drClassCurrent
+    .join(drDenominators.select("period", "total"), "period")
+    .derive({ prop: d => d.total != null ? d.n / d.total : 0 })
+    .objects()
+
+  // Apply table selection input
+  const tableData = drClassTableSelection
+  const allSelected = !tableData || tableData.length === 0
+  if (!allSelected) {
+    const selectedPeriods = new Set(tableData.map(d => d.period_label))
+    data = data.filter(d => selectedPeriods.has(d.period_label))
+  }
+
+  const grouped = drClassForm.barMode === "Grouped"
+
+  return Plot.plot({
+    fx: { label: "Period", tickRotate: 0, padding: 0.1, domain: drLabelOrder },
+    x: grouped ?
+      { axis: null, padding: 0.05, domain: drClassForm.selected } :
+      { axis: null },
+    y: { label: "% Sequences per time-bin", percent: true },
+    color: { legend: true, ...colorScales["resistance_class"] },
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      grouped
+        ? Plot.barY(data, {
+            fx: "period_label", x: "class", y: "prop", fill: "class", tip: true,
+            title: d => `${d.class}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })
+        : Plot.barY(data, Plot.stackY({
+            fx: "period_label", y: "prop", fill: "class", tip: true,
+            title: d => `${d.class}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })),
+      Plot.ruleY([0])
+    ],
+    height: 300
+  })
+}
+```
+
+
+##### Class table {height="37.5%"}
+
+```{ojs}
+//| label: dr-class-table
+
+viewof drClassTableSelection = {
+  if (drClassCurrent.numRows() === 0) return noData("No data to display.")
+
+  const selected = drClassForm.selected
+  const wide = drClassCurrent
+    .groupby("period_label")
+    .pivot("class", "n")
+    .derive({
+      total: aq.escape(d => selected.reduce((sum, c) => sum + (d[c] || 0), 0))
+    })
+    .orderby("period_label")
+
+  return Inputs.table(wide.objects(), {
+    rows: 15,
+    layout: "auto",
+    sort: "period_label",
+    reverse: true,
+    header: {
+      period_label: "Period",
+      total: "Total"
+    }
+  })
+}
+```
+
+### Drug
+
+#### {.sidebar}
+
+```{ojs}
+//| label: dr-drug-form
+viewof drDrugForm = Inputs.form({
+  barMode: Inputs.radio(["Grouped", "Stacked"], { label: "Bar mode", value: "Grouped" }),
+  selected: Inputs.checkbox(drDrugOptions, {
+    label: "Select drugs",
+    value: ["FTC", "3TC", "TDF", "TAF", "RAL", "DTG", "BIC"].filter(d => drDrugOptions.includes(d))
+  })
+})
+```
+
+```{ojs}
+//| label: dr-drug-filter
+//| output: false
+
+drDrugCurrent = {
+  const selected = drDrugForm.selected
+  return drDrugAgg
+    .filter(aq.escape(d => d.period >= drMinPeriod))
+    .filter(aq.escape(d => selected.includes(d.drug)))
+}
+```
+
+#### Row
+
+##### Drug barplot {height="62.5%"}
+
+```{ojs}
+//| label: dr-drug-barplot
+//| expandable: false
+
+{
+  if (drDrugCurrent.numRows() === 0) return noData("No data to display.", { height: "200px" })
+
+  let data = drDrugCurrent
+    .join(drDenominators.select("period", "total"), "period")
+    .derive({ prop: d => d.total != null ? d.n / d.total : 0 })
+    .objects()
+
+  // Apply table selection input
+  const tableData = drDrugTableSelection
+  const allSelected = !tableData || tableData.length === 0
+  if (!allSelected) {
+    const selectedPeriods = new Set(tableData.map(d => d.period_label))
+    data = data.filter(d => selectedPeriods.has(d.period_label))
+  }
+
+  const grouped = drDrugForm.barMode === "Grouped"
+
+  return Plot.plot({
+    fx: { label: "Period", tickRotate: 0, padding: 0.1, domain: drLabelOrder },
+    x: grouped ?
+      { axis: null, padding: 0.05, domain: drDrugForm.selected } :
+      { axis: null },
+    y: { label: "% Sequences per time-bin", percent: true },
+    color: { domain: drDrugForm.selected, legend: true },
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      grouped
+        ? Plot.barY(data, {
+            fx: "period_label", x: "drug", y: "prop", fill: "drug", tip: true,
+            title: d => `${d.drug}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })
+        : Plot.barY(data, Plot.stackY({
+            fx: "period_label", y: "prop", fill: "drug", tip: true,
+            title: d => `${d.drug}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })),
+      Plot.ruleY([0])
+    ],
+    height: 300
+  })
+}
+```
+
+##### Drug table {height="37.5%"}
+
+```{ojs}
+//| label: dr-drug-table
+
+viewof drDrugTableSelection = {
+  if (drDrugCurrent.numRows() === 0) return noData("No data to display.")
+
+  const selected = drDrugForm.selected
+  const wide = drDrugCurrent
+    .groupby("period_label")
+    .pivot("drug", "n")
+    .derive({
+      total: aq.escape(d => selected.reduce((sum, c) => sum + (d[c] || 0), 0))
+    })
+    .orderby("period_label")
+
+  return Inputs.table(wide.objects(), {
+    rows: 15,
+    layout: "auto",
+    sort: "period_label",
+    reverse: true,
+    header: {
+      period_label: "Period",
+      total: "Total"
+    },
+  })
+}
+```
+
+### Mutation
+
+#### {.sidebar}
+
+```{ojs}
+//| label: dr-mutation-form
+viewof drMutForm = Inputs.form({
+  barMode: Inputs.radio(["Grouped", "Stacked"], { label: "Bar mode", value: "Stacked" }),
+  selected: Inputs.checkbox(drMutOptions, { value: ["K103N", "K70R", "M184V"], label: "Select mutations" }),
+})
+```
+
+```{ojs}
+//| label: dr-mutation-filter
+//| output: false
+
+drMutCurrent = {
+  const selected = drMutForm.selected
+  return drMutAgg
+    .filter(aq.escape(d => d.period >= drMinPeriod))
+    .filter(aq.escape(d => selected.includes(d.mutation)))
+}
+```
+
+#### Row
+
+##### Mutation barplot {height="62.5%"}
+
+```{ojs}
+//| label: dr-mutation-barplot
+//| expandable: false
+
+{
+  if (drMutCurrent.numRows() === 0) return noData("No data to display.", { height: "200px" })
+
+  let data = drMutCurrent
+    .join(drDenominators.select("period", "total"), "period")
+    .derive({ prop: d => d.total != null ? d.n / d.total : 0 })
+    .objects()
+
+  // Apply table selection input
+  const tableData = drMutTableSelection
+  const allSelected = !tableData || tableData.length === 0
+  if (!allSelected) {
+    const selectedPeriods = new Set(tableData.map(d => d.period_label))
+    data = data.filter(d => selectedPeriods.has(d.period_label))
+  }
+
+  const grouped = drMutForm.barMode === "Grouped"
+
+  return Plot.plot({
+    fx: { label: "Period", tickRotate: 0, padding: 0.1, domain: drLabelOrder },
+    x: grouped ?
+      { axis: null, padding: 0.05, domain: drMutForm.selected } :
+      { axis: null },
+    y: { label: "% Sequences per time-bin", percent: true },
+    color: { domain: drMutForm.selected, legend: true },
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      grouped
+        ? Plot.barY(data, {
+            fx: "period_label", x: "mutation", y: "prop", fill: "mutation", tip: true,
+            title: d => `${d.mutation}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })
+        : Plot.barY(data, Plot.stackY({
+            fx: "period_label", y: "prop", fill: "mutation", tip: true,
+            title: d => `${d.mutation}\n${d.period_label}\n${d.n}/${d.total} (${(d.prop * 100).toFixed(1)}%)`
+          })),
+      Plot.ruleY([0])
+    ],
+    height: 300
+  })
+}
+```
+
+##### Mutation table {height="37.5%"}
+
+```{ojs}
+//| label: dr-mutation-table
+
+viewof drMutTableSelection = {
+  if (drMutCurrent.numRows() === 0) return noData("No data to display.")
+
+  const selected = drMutForm.selected
+  const wide = drMutCurrent
+    .groupby("period_label")
+    .pivot("mutation", "n")
+    .derive({
+      total: aq.escape(d => selected.reduce((sum, c) => sum + (d[c] || 0), 0))
+    })
+    .orderby("period_label")
+
+  return Inputs.table(wide.objects(), {
+    rows: 15,
+    layout: "auto",
+    sort: "period_label",
+    reverse: true,
+    header: {
+      period_label: "Period",
+      total: "Total"
+    },
+  })
+}
+```

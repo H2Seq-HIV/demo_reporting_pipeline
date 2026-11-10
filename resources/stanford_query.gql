@@ -1,0 +1,21 @@
+inputSequence {
+    header
+},
+alignedGeneSequences(includeGenes: [CA, PR, RT, IN]) {
+    SDRM: mutations(filterOptions: [SDRM]) {
+        text
+    },
+},
+firstTenCloseSubtypes: subtypesV2(first: 20) {
+    displayWithoutDistance,
+    distancePcnt,
+    referenceAccession
+},
+bestMatchingSubtype { display },
+drugResistance(includeGenes: [CA, PR, RT, IN]) {
+    drugScores {
+        drugClass { name },
+        drug { displayAbbr },
+        level,
+    }
+}

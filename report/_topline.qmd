@@ -1,0 +1,427 @@
+# Top-line
+
+```{r}
+#| label: overview-topline-stats
+#| output: false
+#| include: false
+
+# --- Data and Linkage Topline ---
+new_notifications <- linelist |>
+  filter(date_onset >= cutoff)
+
+new_sequences <- seq_linelist |>
+  filter(date_onset >= cutoff)
+
+n_new_notifications <- nrow(new_notifications)
+n_new_sequences <- nrow(new_sequences)
+
+# --- Clustering Topline ---
+n_new_sequences_in_clusters <- new_sequences %>%
+  filter(cluster_size %in% c("Small", "Large")) %>%
+  nrow()
+
+n_new_clusters <- cluster_linelist %>%
+  filter(cluster_size %in% c("Small", "Large")) %>%
+  group_by(cluster_id) %>%
+  filter(all(date_onset >= cutoff)) %>%
+  summarise(.groups = "drop") %>%
+  nrow()
+
+n_new_recent_arrival <- new_sequences %>%
+  filter(date_onset >= cutoff & recent_arrival == TRUE) %>%
+  nrow()
+
+n_new_recent_arrival_clustered <- new_sequences %>%
+  filter(cluster_size %in% c("Small", "Large") & recent_arrival == TRUE) %>%
+  nrow()
+
+n_active_large_clusters <- new_sequences %>%
+  filter(cluster_size == "Large") %>%
+  group_by(cluster_id) %>%
+  summarise(n_active = any(date_onset >= cutoff)) %>%
+  nrow()
+
+# --- DRM Topline ---
+n_insti_res <- class_resistance %>%
+  filter(date_onset >= cutoff, class == "INSTI") %>%
+  pull(resistant) %>%
+  sum()
+
+prep_drugs <- c("TDF", "FTC", "3TC")
+n_prep_resistance <- drug_resistance %>%
+  mutate(drug = ifelse(drug %in% c("FTC", "3TC"), "XTC", drug)) %>%
+  filter(date_onset >= cutoff, drug %in% prep_drugs) %>%
+  group_by(id) %>%
+  summarise(compound_resistance = sum(resistant), .groups = "drop") %>%
+  filter(compound_resistance >= 2) %>% # 2 or more of TDF, FTC, 3TC
+  distinct(id) %>%
+  nrow()
+
+n_any_class_resistance <- class_resistance %>%
+  filter(date_onset >= cutoff) %>%
+  group_by(id) %>%
+  filter(sum(resistant) >= 1) %>%
+  distinct(id) %>%
+  nrow()
+
+# --- Location counts for map ---
+location_counts <- new_notifications %>%
+  group_by(location) %>%
+  summarise(count = n(), .groups = "drop")
+
+location_cluster_rates <- new_sequences %>%
+  filter(!is.na(location)) %>%
+  group_by(location) %>%
+  summarise(
+    n_sequences = n(),
+    n_clustered = sum(cluster_size %in% c("Small", "Large")),
+    pct_clustered = (100 * n_clustered / n_sequences),
+    .groups = "drop"
+  )
+
+ojs_define(
+  locationCounts = location_counts,
+  locationClusterRates = location_cluster_rates
+)
+```
+
+```{r}
+#| label: overview-fmt-cutoff
+#| output: false
+#| include: false
+
+cutoff_pretty <- format(cutoff, '%d %b %Y')
+
+```
+
+```{r}
+#| label: overview-conditional-colouring
+#| output: false
+
+color_insti <- if (n_insti_res > 0) "danger" else "secondary"
+color_prep <- if (n_prep_resistance > 0) "danger" else "secondary"
+```
+
+```{r}
+#| label: overview-fmt-pct
+#| output: false
+#| include: false
+
+format_pct <- function(x, digits = 1) {
+  paste0(round(x * 100, digits), "%")
+}
+```
+
+<!-- TOP ROW -->
+## Row {height="50%"}
+
+### Column {width=25%}
+
+::: {.valuebox icon="virus" color="info"}
+New sequences included since `r cutoff_pretty`
+
+`r n_new_sequences`
+
+_After linkage and filtering_
+:::
+
+### Column {width=25%}
+
+::: {.valuebox icon="bar-chart-line" color="info"}
+Notifications since `r cutoff_pretty`
+
+`r n_new_notifications`
+:::
+
+::: {.valuebox icon="link-45deg" color="success"}
+
+Notifications with linked sequences since `r cutoff_pretty`
+
+`r format_pct(n_new_sequences / n_new_notifications)`
+:::
+
+### Column {.tabset width=50%}
+
+```{ojs}
+//| label: overview-map
+//| title: "New notifications by Location"
+
+{
+  const mapCounts = aq.table(locationCounts).objects()
+
+  if (mapCounts.length === 0) {
+    return noData("No data available.", {height: "200px"})
+  }
+
+  const maxCount = Math.max(...mapCounts.map(row => row.count), 1)
+  const countsLookup = Object.fromEntries(
+    mapCounts.map(row => [row.location, row.count])
+  )
+
+  const container = html`<div style="width:100%; height:100%; min-height:300px; position:relative"></div>`;
+  yield container;
+  await new Promise(r => new ResizeObserver((_, o) => { o.disconnect(); r(); }).observe(container));
+
+  const map = L.map(container, {scrollWheelZoom: false})
+
+  // .setView([-29, 145], 7); COMMENTED OUT WHILE TESTNG BOUND FIT
+
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=" + cartoAPIKey,
+      {
+      attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+      maxZoom: 19
+    }
+  ).addTo(map)
+
+  const geo = L.geoJSON(locationsGeo, {
+    style: f => geoStyle(f, countsLookup, maxCount),
+    onEachFeature: (f, layer) => {
+      geoTooltip(f, layer, countsLookup);
+      layer.on("click", () => map.fitBounds(layer.getBounds(), {padding: [40, 40], maxZoom: 10}));
+    }
+  }).addTo(map);
+
+  // Check for Locations with counts but not in GeoJSON
+  const geoNames = new Set(locationsGeo.features.map(f => f.properties.name));
+  const unmapped = Object.keys(countsLookup).filter(name => countsLookup[name] > 0 && !geoNames.has(name));
+
+  if (unmapped.length > 0) {
+    const unmappedLabels = unmapped.map(name => `${name} (${countsLookup[name]})`)
+    const warning = L.control({position: "topright"})
+    warning.onAdd = () => {
+      const div = L.DomUtil.create("div")
+      div.innerHTML = `
+      <div style="background:#FFD200;color:#333;padding:0.5rem 0.75rem;border-radius:4px;font-size:0.8rem;box-shadow:0 2px 4px rgba(0,0,0,.2);max-width:200px">
+        <strong>⚠️ Not mapped:</strong> ${unmappedLabels.join(", ")}
+      </div>`
+      return div
+    }
+    warning.addTo(map)
+  }
+
+  // Handle Bounds: zoom to features with data; fall back to all locations.
+  const withData = locationsGeo.features
+    .filter(f => countsLookup[f.properties.name] > 0)
+
+  const startBounds = withData.length > 0
+    ? L.geoJSON(withData).getBounds()
+    : L.geoJSON(
+        locationsGeo.features.filter(f => f.properties.type === "location")
+      ).getBounds()
+
+  const reset = L.control({position: "topleft"})
+  reset.onAdd = () => {
+    const btn = L.DomUtil.create("button")
+    btn.innerHTML = "Reset zoom"
+    btn.style.cssText = "padding:4px 8px;cursor:pointer;background:white;border:1px solid #ccc;border-radius:4px;font-size:12px"
+    btn.onclick = (e) => {
+      L.DomEvent.stopPropagation(e)
+      map.fitBounds(startBounds, {padding: [20, 20], maxZoom: 19})
+    }
+    return btn
+  }
+  reset.addTo(map)
+
+  // Add legend
+  gradientLegend(map, {max: maxCount, title: "Notifications"})
+
+  let initialFitDone = false;
+  const ro = new ResizeObserver(() => {
+    map.invalidateSize();
+    if (!initialFitDone && container.clientWidth > 100 && container.clientHeight > 100) {
+      map.fitBounds(startBounds, {padding: [20, 20], maxZoom: 19});
+      initialFitDone = true;
+    }
+  });
+  ro.observe(container);
+  invalidation.then(() => ro.disconnect());
+}
+
+```
+
+
+```{ojs}
+//| label: overview-map-clustered
+//| title: "Percent clustered by Location"
+
+{
+  const rates = aq.table(locationClusterRates).objects()
+
+  if (rates.length === 0) {
+    return noData("No clustered sequence data available.", { height: "200px" })
+  }
+
+  const rateLookup = Object.fromEntries(
+    rates.map(row => [row.location, row.pct_clustered])
+  )
+
+  const detailLookup = Object.fromEntries(
+    rates.map(row => [row.location, row])
+  )
+
+  const container = html`<div style="width:100%; height:100%; min-height:300px; position:relative"></div>`
+  yield container
+
+  await new Promise(resolve => {
+    new ResizeObserver((entries, observer) => {
+      observer.disconnect()
+      resolve(entries[0])
+    }).observe(container)
+  })
+
+  const map = L.map(container, { scrollWheelZoom: false })
+
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=" + cartoAPIKey,
+      {
+      attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+      maxZoom: 19
+    }
+  ).addTo(map)
+
+  const geo = L.geoJSON(locationsGeo, {
+    style: feature => {
+      const pct = rateLookup[feature.properties.name] || 0
+
+      return {
+        fillColor: fillColor(pct, 100),
+        fillOpacity: 0.7,
+        weight: 1,
+        color: feature.properties.type === "state" ? "#999" : "#666"
+      }
+    },
+    onEachFeature: (feature, layer) => {
+      const location = feature.properties.name
+      const detail = detailLookup[location]
+
+      if (detail) {
+        layer.bindTooltip(
+          `${location}: ${detail.pct_clustered.toFixed(1)}% ` +
+          `(${detail.n_clustered}/${detail.n_sequences})`
+        )
+      } else {
+        layer.bindTooltip(`${location}: no new sequences`)
+      }
+
+      layer.on("click", () =>
+        map.fitBounds(layer.getBounds(), {
+          padding: [40, 40],
+          maxZoom: 10
+        })
+      )
+    }
+  }).addTo(map)
+
+  const withData = locationsGeo.features
+    .filter(feature => rateLookup[feature.properties.name] > 0)
+
+  const startBounds = withData.length > 0
+    ? L.geoJSON(withData).getBounds()
+    : L.geoJSON(
+        locationsGeo.features.filter(feature => feature.properties.type === "location")
+      ).getBounds()
+
+  const reset = L.control({ position: "topleft" })
+
+  reset.onAdd = () => {
+    const button = L.DomUtil.create("button")
+    button.textContent = "Reset zoom"
+    button.style.cssText =
+      "padding:4px 8px;cursor:pointer;background:white;" +
+      "border:1px solid #ccc;border-radius:4px;font-size:12px"
+
+    button.onclick = event => {
+      L.DomEvent.stopPropagation(event)
+      map.fitBounds(startBounds, { padding: [20, 20], maxZoom: 19 })
+    }
+
+    return button
+  }
+
+  reset.addTo(map)
+
+  gradientLegend(map, {
+    max: "100%",
+    title: "Sequences in clusters"
+  })
+
+  let initialFitDone = false
+
+  const observer = new ResizeObserver(() => {
+    map.invalidateSize()
+
+    if (
+      !initialFitDone &&
+      container.clientWidth > 100 &&
+      container.clientHeight > 100
+    ) {
+      map.fitBounds(startBounds, { padding: [20, 20], maxZoom: 19 })
+      initialFitDone = true
+    }
+  })
+
+  observer.observe(container)
+  invalidation.then(() => observer.disconnect())
+}
+```
+
+## Row 2 {height="25%"}
+
+### Column 1 {width=50%}
+
+::: {.valuebox icon="exclamation-diamond" color="`r color_prep`"}
+Sequences with PrEP resistance
+
+`r n_prep_resistance`
+
+_(Two or more of `r paste(prep_drugs, collapse=", ")`)_
+:::
+
+### Clustering Column 1 {width=25%}
+
+::: {.valuebox icon="bar-chart-line" color="info"}
+New sequences in clusters
+
+`r format_pct(n_new_sequences_in_clusters / n_new_sequences)`
+:::
+
+### Clustering Column 2 {width=25%}
+
+::: {.valuebox icon="globe-asia-australia" color="info"}
+Recent arrivals clustered
+
+`r format_pct(n_new_recent_arrival_clustered / n_new_recent_arrival)`
+
+_Among new sequences, 4-year cutoff_
+:::
+
+## Row 3 {height="25%"}
+
+::: {.valuebox icon="exclamation-diamond" color="`r color_insti`"}
+Sequences with INSTI Resistance
+
+`r n_insti_res`
+:::
+
+::: {.valuebox icon="exclamation-diamond" color="info"}
+Resistant to any drug class
+
+`r format_pct(n_any_class_resistance / n_new_sequences)`
+:::
+
+::: {.valuebox icon="share" color="warning"}
+Recent clusters
+
+`r n_new_clusters`
+
+_All sequences are new_
+:::
+
+::: {.valuebox icon="share" color="warning"}
+Active large clusters
+
+`r n_active_large_clusters`
+
+_≥10 sequences with at least one new sequence_
+:::

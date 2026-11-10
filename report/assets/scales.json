@@ -1,0 +1,20 @@
+{
+  "color": {
+    "cluster_size":         { "domain": ["Singleton", "Pair", "Small", "Large"],     "range": ["#2c7bb6", "#abd9e9", "#fdae61", "#d7191c"] },
+    "acquisition_location": { "domain": ["Australia", "Overseas", "Unknown/Other"],  "range": ["#2c7bb6", "#fdae61", "#abd9e9"] },
+    "birth_location":       { "domain": ["Australia", "Overseas", "Unknown/Other"],  "range": ["#2c7bb6", "#fdae61", "#abd9e9"] },
+    "exposure_category":    { "domain": ["MSM", "HET", "IDU", "Unknown/Other"],       "range": ["#2c7bb6", "#fdae61", "#d7191c", "#abd9e9"] },
+    "infection_stage": {
+      "domain": ["Early", "Late", "Unknown/Other"],
+      "range": ["#fdae61", "#d7191c", "#abd9e9"]
+    },
+    "recent_arrival":       { "domain": [true, false],                               "range": ["#d7191c", "#2c7bb6"] },
+    "resistance_class":     { "domain": ["NRTI", "NNRTI", "INSTI", "PI"],            "range": ["#2c7bb6", "#fdae61", "#d7191c", "#abd9e9"] }
+  },
+  "shape": {
+    "exposure_category":    { "domain": ["MSM", "HET", "IDU", "Unknown/Other"],       "range": ["circle", "square", "cross", "triangle"] },
+    "acquisition_location": { "domain": ["Australia", "Overseas", "Unknown/Other"],  "range": ["circle", "cross", "square"] },
+    "birth_location":       { "domain": ["Australia", "Overseas", "Unknown/Other"],  "range": ["circle", "cross", "square"] },
+    "recent_arrival":       { "domain": [true, false],                               "range": ["cross", "circle"] }
+  }
+}

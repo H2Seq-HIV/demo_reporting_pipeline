@@ -1,0 +1,111 @@
+
+```{r}
+#| label: data-r-libs
+#| output: false
+#| include: false
+
+library(tidyverse)
+library(yaml)
+```
+
+```{r}
+#| label: data-config
+#| output: false
+config <- read_yaml("../config/config.yaml")
+```
+
+```{r}
+#| label: data-params
+#| output: false
+#| include: false
+
+cutoff <- as.Date(config$report$cutoff_lower)
+cutoff_display <- format(cutoff, "%d %b %Y")
+ojs_define(cutoff = config$report$cutoff_lower, cutoffDisplay = cutoff_display)
+```
+
+```{r}
+#| label: data-clusters
+#| output: false
+#| include: false
+
+linelist <- read_csv("../results/dashboard_data/linelist.csv") %>%
+  rename(subtype = subtype_prrtin) # patch
+
+seq_linelist <- linelist %>%
+  filter(linked & cluster_analysis) %>%
+  group_by(cluster_id) %>%
+  mutate(cluster_size = case_when(
+    is.na(cluster_id) ~ "Singleton", # ID not assigned in hivtrace steps for singletons
+    n() == 2 ~ "Pair",
+    n() >= 3 & n() < 10 ~ "Small",
+    TRUE ~ "Large"
+  )) %>%
+  mutate(cluster_active = ifelse(
+    any(date_onset >= cutoff), TRUE, FALSE
+  )) %>%
+  ungroup()
+
+
+# Only clusters
+cluster_linelist <- seq_linelist %>%
+  filter(cluster_size %in% c("Small", "Large"))
+
+ojs_define(linelist = seq_linelist, clusterLinelist = cluster_linelist) # will need renaming
+```
+
+```{r}
+#| label: data-resistance
+#| output: false
+#| include: false
+
+class_resistance <- read_csv("../results/dashboard_data/class_resistance.csv")
+drug_resistance <- read_csv("../results/dashboard_data/drug_resistance.csv")
+mutation_resistance <- read_csv("../results/dashboard_data/drms.csv")
+
+ojs_define(
+  classRes = class_resistance,
+  drugRes = drug_resistance,
+  mutRes = mutation_resistance
+)
+```
+
+```{r}
+#| label: data-autotune
+#| output: false
+autotune <- read_csv("../results/dashboard_data/autotune.csv")
+```
+
+```{r}
+#| label: data-tools-versions
+#| output: false
+versions <- read_csv("../results/dashboard_data/versions.csv")
+```
+
+```{r}
+#| label: sequences
+#| output: false
+
+sequences <- ape::read.dna(
+  "../results/dashboard_data/sequences.fasta",
+  format = "fasta"
+)
+
+sequence_bases <- as.character(sequences)
+
+coverage_df <- tibble(
+  position = seq_len(ncol(sequence_bases)),
+  coverage = apply(
+    sequence_bases,
+    2,
+    \(site) mean(site %in% c("a", "c", "g", "t"))
+  )
+)
+
+```
+
+```{r}
+#| label: pipeline-stats
+#| output: false
+pipeline_stats <- read_csv("../results/dashboard_data/pipeline_stats.csv")
+```

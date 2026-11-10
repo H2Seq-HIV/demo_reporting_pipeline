@@ -1,0 +1,23 @@
+meta:
+  name: Kirby Institute
+  link: https://www.kirby.unsw.edu.au/
+
+logo:
+  small: kirby-logo.png
+
+color:
+  palette:
+    brown: "#B9996A"
+    # yellow: "#FFD200"
+    # navy: "#377eb8"
+    # blue: "#a6cee3"
+    # red: "#de2d26"
+    # purple: "#54278f"
+    # green: "#31a354"
+
+  primary: brown
+  # secondary: navy
+  # success: green
+  # info: blue
+  # warning: yellow
+  # danger: red

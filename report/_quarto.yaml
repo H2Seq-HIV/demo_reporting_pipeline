@@ -1,0 +1,4 @@
+project:
+  output-dir: ../results/report
+
+brand: assets/_brand.yaml

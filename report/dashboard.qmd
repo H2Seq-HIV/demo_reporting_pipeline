@@ -1,0 +1,75 @@
+---
+title: "H2Seq HIV Report<br/><small><em>SIMULATED DATA 2019-2020</em></small>"
+subtitle: "Pipeline version: {{< meta version >}}<br/>Created: `r Sys.Date()`"
+output-file: "dashboard.html"
+format:
+  dashboard:
+    scrolling: false
+    orientation: rows
+    theme:
+      light:
+        - default
+      dark:
+        - darkly
+    grid:
+      sidebar-width: 650px
+    respect-user-color-scheme: true
+    from: markdown+emoji
+
+embed-resources: false
+code-copy: false
+execute:
+  echo: false
+  warning: false
+bibliography: assets/refs.bib
+params: # NOTE: This can be replaced with config once this is moved to a snakemake rule!
+  cutoff_lower: "2019-01-01"
+  cutoff_upper: "2019-12-31"
+---
+
+```{r}
+#| label: get-version
+#| echo: false
+#| output: asis
+
+report_version <- system2(
+  "git",
+  c("describe", "--tags", "--always"),
+  stdout = TRUE
+)
+
+# Write the dynamic YAML block
+quarto::write_yaml_metadata_block(
+  version = report_version,
+  date = Sys.Date()
+)
+```
+
+
+<!-- Utility functions -->
+{{< include _ojs_setup.qmd >}}
+
+<!-- Load and wrangle data -->
+{{< include _data.qmd >}}
+
+<!-- About -->
+{{< include _about.qmd >}}
+
+<!-- Top-line -->
+{{< include _topline.qmd >}}
+
+<!-- Drug resistance -->
+{{< include _drug_resistance.qmd >}}
+
+<!-- Cluster trends -->
+{{< include _cluster_trends.qmd >}}
+
+<!-- Cluster explorer -->
+{{< include _cluster_explorer.qmd >}}
+
+<!-- Supplementary -->
+{{< include _supplementary.qmd >}}
+
+<!-- Changelog -->
+{{< include _changelog.qmd >}}
+

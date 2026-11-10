@@ -1,0 +1,695 @@
+```{ojs}
+//| label: cluster-explorer-setup
+//| output: false
+
+import { clusterLinelist, cutoff, cutoffDisplay } from "_data.qmd"
+// cutoffDate & cutoffDisplay globally availale from _ojs_setup.qmd
+
+ceData = aq.table(clusterLinelist)
+
+// All unique cluster IDs
+ceAllIds = ceData
+  .dedupe("cluster_id")
+  .array("cluster_id")
+  .sort()
+
+// ID of clusters with ≥1 sequence since cutoff for "active cluster" filter
+ceActiveIds = ceData
+  .filter(aq.escape(d => d.date_onset >= cutoff))
+  .dedupe("cluster_id")
+  .array("cluster_id")
+  .sort()
+
+// Cluster size (count) lookup
+ceSizeLookup = Object.fromEntries(
+  ceData
+  .groupby("cluster_id")
+  .count()
+  .objects()
+  .map(d => [d.cluster_id, d.count])
+)
+
+// Lookup for acquisition & exposure. Easier in loop than Arquero
+ceAcqExpLookup = {
+  const attrs = {}
+  for (const row of ceData.objects()) {
+    if (!attrs[row.cluster_id]) attrs[row.cluster_id] = { acq: new Set(), exp: new Set() }
+    if (row.acquisition_location) attrs[row.cluster_id].acq.add(row.acquisition_location)
+    if (row.exposure_category) attrs[row.cluster_id].exp.add(row.exposure_category)
+  }
+  return attrs
+}
+
+// Unique values for checkbox filters
+ceAcqValues = ceData
+  .dedupe("acquisition_location")
+  .array("acquisition_location")
+  .sort()
+
+ceExpValues = ceData
+  .dedupe("exposure_category")
+  .array("exposure_category")
+  .sort()
+
+// Lookup id to last sample date for "samples since" filter
+ceLastDateLookup = Object.fromEntries(
+  ceData
+    .groupby("cluster_id")
+    .rollup({last: d => op.max(d.date_onset)}).objects()
+    .map(d => [d.cluster_id, new Date(d.last)])
+)
+
+```
+
+# Cluster Explorer
+
+## {.sidebar width="375px"}
+
+**Filter clusters:**
+<!-- <br/>
+<span style="font-size: 0.8em; color: #666; font-style: italic;">
+  <strong>Active:</strong> ≥1 sequence since ${cutoffDisplay}.<br/>
+  <strong>Large:</strong> ≥10 sequences.
+</span> -->
+
+```{ojs}
+viewof ceFilters = Inputs.form({
+  activeOnly: Inputs.toggle({ label: "Active clusters only", value: true }),
+  largeOnly: Inputs.toggle({ label: "Large clusters only", value: true }),
+  samplesSince: Inputs.date({ label: "With samples since", value: "2019-01-01" }),
+  acqFilter: Inputs.checkbox(
+    ceAcqValues,
+    { value: ceAcqValues, label: "Including acquisition:" }
+  ),
+  expFilter: Inputs.checkbox(
+    ceExpValues,
+    { value: ceExpValues, label: "Including exposure:" }
+  )
+})
+```
+
+
+```{ojs}
+//| label: cluster-explorer-apply-filters
+//| output: false
+
+ceIdsFiltered = {
+  const { activeOnly, largeOnly, samplesSince, acqFilter, expFilter } = ceFilters
+
+  // Active filter
+  let clusters = activeOnly ? ceActiveIds : ceAllIds
+
+  // Size filter
+  if (largeOnly) {
+    clusters = clusters.filter(c => ceSizeLookup[c] >= 10)
+  }
+
+  // Last sample filter
+  clusters = clusters.filter(c => ceLastDateLookup[c] >= samplesSince)
+
+  // Acquisition & Exposure filter
+  const acqSet = new Set(acqFilter)
+  const expSet = new Set(expFilter)
+
+  clusters = clusters.filter(c => {
+    const attr = ceAcqExpLookup[c]
+    if (!attr) return false
+    const acqMatch = [...attr.acq].some(v => acqSet.has(v))
+    const expMatch = [...attr.exp].some(v => expSet.has(v))
+    return acqMatch && expMatch
+  })
+
+  return clusters
+}
+```
+
+---
+
+**Select clusters**
+
+```{ojs}
+//| label: cluster-explorer-summaries
+//| output: false
+
+ceFilteredIdSet = new Set(ceIdsFiltered)
+
+ceSummaryTable = ceData
+  .derive({ is_new: aq.escape(d => d.date_onset >= cutoff ? 1 : 0) })
+  .groupby("cluster_id")
+  .rollup({
+    size: op.count(),
+    n_new: d => op.sum(d.is_new),
+    subtype: d => op.array_agg_distinct(d.subtype)
+  })
+  .filter(aq.escape(d => ceFilteredIdSet.has(d.cluster_id)))
+  .orderby(aq.desc("cluster_id"))
+
+```
+
+```{ojs}
+//| label: cluster-explorer-selection-table
+
+viewof ceSelectedRows = {
+  const tableObj = ceSummaryTable.objects()
+
+  if (tableObj.length === 0) {
+    const el = noData("No clusters match current filters. Try adjusting the filters above.", {type: "warning"})
+    el.value = []
+    return el
+  }
+  return Inputs.table(tableObj, {
+    rows: 1000,
+    // layout: "fixed",
+    required: false,
+    value: tableObj.slice(0, 1),
+    columns: ["cluster_id", "size", "n_new", "subtype"],
+    header: {
+      cluster_id: "Cluster ID",
+      size: "N",
+      n_new: "New",
+      subtype: "Subtype"
+    },
+    width: {
+      cluster_id: "25%",
+      size: "10%",
+      n_new: "15%",
+      subtype: "40%"
+    },
+    index: false
+  })
+}
+```
+
+```{ojs}
+//| label: cluster-explorer-apply-table-selection
+//| output: false
+
+ceSelectedIds = {
+  if (ceSelectedRows && ceSelectedRows.length > 0) {
+    return new Set(ceSelectedRows.map(d => d.cluster_id))
+  }
+  return new Set()
+}
+
+ceCurrentData = ceSelectedIds.size > 0
+  ? ceData
+    .filter(aq.escape(d => ceSelectedIds.has(d.cluster_id)))
+    .orderby('date_onset')
+  : ceData.filter(() => false)
+
+ceTotalSamples = ceCurrentData
+  .filter(aq.escape(d => d.date_onset >= cutoff))
+  .numRows()
+```
+
+## Map Column
+
+### Location Map {height=40%}
+
+```{ojs}
+//| label: cluster-explorer-map
+
+{
+  if (ceSelectedIds.size === 0 || ceCurrentData.numRows() === 0) {
+    return noData("No clusters selected.", {height: "300px"})
+  }
+
+  const container = html`<div style="width:100%; height:100%; min-height:300px; position:relative"></div>`
+  yield container
+  // Wait for container render via Promise
+  await new Promise(r => new ResizeObserver((_, o) => { o.disconnect(); r() }).observe(container))
+
+  const map = L.map(container, {scrollWheelZoom: false})
+
+  L.tileLayer(
+    "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=" + cartoAPIKey,
+      {
+      attribution: "&copy; OpenStreetMap Contributors &copy; CARTO",
+      maxZoom: 19
+    }
+  ).addTo(map)
+
+
+  const countsLookup = {}
+  if (ceSelectedIds.size > 0) {
+    for (const row of ceCurrentData.objects()) {
+      if (row.location) countsLookup[row.location] = (countsLookup[row.location] || 0) + 1
+    }
+  }
+
+  const maxCount = Math.max(...Object.values(countsLookup), 1) // For legend
+
+  const geo = L.geoJSON(locationsGeo, {
+    style: f => geoStyle(f, countsLookup, maxCount),
+    onEachFeature: (f, layer) => {
+      geoTooltip(f, layer, countsLookup)
+      layer.on("click", () =>
+        map.fitBounds(layer.getBounds(), {padding: [40, 40], maxZoom: 10})
+      )
+    }
+  }).addTo(map)
+
+  // Check for Locations not in GeoJSON
+  const geoNameSet = new Set(locationsGeo.features.map(f => f.properties.name))
+  const unmapped = Object.keys(countsLookup)
+    .filter(name => countsLookup[name] > 0 && !geoNameSet.has(name))
+
+  if (unmapped.length > 0) {
+    const unmappedLabels = unmapped.map(name => `${name} (${countsLookup[name]})`)
+    const warning = L.control({position: "topright"})
+    warning.onAdd = () => {
+      const div = L.DomUtil.create("div")
+      div.innerHTML = `
+      <div style="background:#FFD200;color:#333;padding:0.5rem 0.75rem;border-radius:4px;font-size:0.8rem;box-shadow:0 2px 4px rgba(0,0,0,.2);max-width:200px">
+        <strong>⚠️ Not mapped:</strong> ${unmappedLabels.join(", ")}
+      </div>`
+      return div
+    }
+    warning.addTo(map)
+  }
+
+  // Handle Bounds: Baseline zoom to features with data, fallback to NSW (where type=location)
+  const withData = locationsGeo.features
+    .filter(f => countsLookup[f.properties.name] > 0)
+
+  const startBounds = withData.length > 0 ?
+    L.geoJSON(withData).getBounds() :
+    L.geoJSON(locationsGeo.features.filter(f => f.properties.type === "location")).getBounds()
+
+  const reset = L.control({position: "topleft"})
+  reset.onAdd = () => {
+    const btn = L.DomUtil.create("button")
+    btn.innerHTML = "Reset zoom"
+    btn.style.cssText = "padding:4px 8px;cursor:pointer;background:white;border:1px solid #ccc;border-radius:4px;font-size:12px"
+    btn.onclick = (e) => {
+      L.DomEvent.stopPropagation(e)
+      map.fitBounds(startBounds, {padding: [20, 20], maxZoom: 19})
+    }
+    return btn
+  }
+  reset.addTo(map)
+
+  // Add legend
+  gradientLegend(map, {max: maxCount, title: "Sequences"})
+
+  let initialFitDone = false;
+  const ro = new ResizeObserver(() => {
+    map.invalidateSize();
+    if (!initialFitDone && container.clientWidth > 100 && container.clientHeight > 100) {
+      map.fitBounds(startBounds, {padding: [20, 20], maxZoom: 19});
+      initialFitDone = true;
+    }
+  });
+  ro.observe(container);
+  invalidation.then(() => ro.disconnect());
+}
+```
+
+### Timelines-and-Locations {.tabset height=60%}
+
+#### Location distribution
+```{ojs}
+//| label: cluster-explorer-location
+//| expandable: false
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display. Select clusters from table or adjust filters", {height: "200px"})
+  }
+
+  return Plot.plot({
+    marks: [
+      Plot.barX(ceCurrentData,
+        Plot.groupY({x: "count"}, {y: "location", fill: "#B9996A", tip: true, sort: {y: "-x", limit: 20}})
+      )
+    ],
+    x: {label: "Count"},
+    y: {label: "Location"},
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marginLeft: 150
+  })
+}
+```
+
+#### Growth curve
+```{ojs}
+//| label: cluster-explorer-growth
+//| expandable: false
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display. Select clusters from table or adjust filters", {height: "200px"})
+  }
+
+  const multiCluster = ceSelectedIds.size > 1
+  const rows = ceCurrentData.objects()
+    .map(d => ({...d, date_onset: new Date(d.date_onset)}))
+
+  if (multiCluster) {
+    // Cumulative count per cluster
+    const byCluster = {}
+    for (const r of rows) {
+      if (!byCluster[r.cluster_id]) byCluster[r.cluster_id] = []
+      byCluster[r.cluster_id].push(r)
+    }
+    const plotRows = []
+    for (const [cid, crows] of Object.entries(byCluster)) {
+      crows.sort((a, b) => a.date_onset - b.date_onset)
+      crows.forEach((r, i) => plotRows.push({...r, cumulative: i + 1}))
+    }
+
+    return Plot.plot({
+      marks: [
+        Plot.line(plotRows, {
+          x: "date_onset", y: "cumulative",
+          stroke: "cluster_id", curve: "step-after"
+        }),
+        Plot.dot(plotRows, {
+          x: "date_onset", y: "cumulative",
+          fill: "cluster_id", r: 3, tip: true,
+          title: d => `${d.cluster_id}\nCumulative: ${d.cumulative}`
+        }),
+        Plot.ruleY([0])
+      ],
+      x: {label: "Date of onset", type: "time"},
+      y: {label: "Cumulative samples"},
+      color: {legend: true},
+      style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+      marginLeft: 50
+    })
+  }
+
+  // Single cluster
+  const sorted = rows.sort((a, b) => a.date_onset - b.date_onset)
+  const withCum = sorted.map((d, i) => ({...d, cumulative: i + 1}))
+
+  return Plot.plot({
+    marks: [
+      Plot.line(withCum, {
+        x: "date_onset", y: "cumulative",
+        curve: "step-after", stroke: "#6C2C91"
+      }),
+      Plot.dot(withCum, {
+        x: "date_onset", y: "cumulative",
+        r: 5, fill: "#6C2C91"
+      }),
+      Plot.ruleY([0])
+    ],
+    x: {label: "Date of onset", type: "time"},
+    y: {label: "Cumulative samples", tickFormat: d => Math.floor(d)},
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marginLeft: 50
+  })
+}
+```
+
+#### Timeline
+```{ojs}
+//| label: cluster-explorer-timeline
+//| expandable: false
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display. Select clusters from table or adjust filters", {height: "200px"})
+  }
+
+  // Define sort Locations by count and most recent sample
+  const locationSummary = ceCurrentData
+  .groupby("location")
+  .rollup({
+    n: op.count(),
+    mostRecent: d => op.max(d.date_onset)
+  })
+  .objects()
+
+const locations = locationSummary
+  .sort((left, right) =>
+    new Date(right.mostRecent) - new Date(left.mostRecent) ||
+    right.n - left.n ||
+    left.location.localeCompare(right.location)
+  )
+  .map(row => row.location)
+
+  // When many locations selected, shink points to fit
+  const pointRadius = Math.max(3, 6 - Math.max(0, locations.length - 5))
+
+  const locationBands = locations.map((location, index) => ({
+    location,
+    fill: (index % 2) - 1 === 0 ? "transparent" : "currentColor"
+  }))
+
+  return Plot.plot({
+    height: Math.max(300, 56 * locations.length),
+    marks: [
+      Plot.rectY(locationBands, {
+        fy: "location",
+        y1: -Infinity,
+        y2: Infinity,
+        fill: "fill",
+        fillOpacity: 0.06
+      }),
+      Plot.ruleY(locations, {
+        fy: d => d,
+        y: 0,
+        stroke: "currentColor",
+        strokeOpacity: 0.18,
+        strokeWidth: 1
+      }),
+      Plot.dot(
+        ceCurrentData,
+        Plot.dodgeY({
+          x: "date_onset",
+          fy: "location",
+          fill: "infection_stage",
+          symbol: "exposure_category",
+          r: pointRadius,
+          padding: 0.01,
+          anchor: "middle",
+          tip: true,
+          title: d =>
+            `Location: ${d.location}\nStage: ${d.infection_stage}\nExposure: ${d.exposure_category}`
+        })
+      )
+    ],
+    x: {label: "Date of notification", type: "time"},
+    y: {axis: null},
+    fy: {
+      domain: locations,
+      label: null,
+      axis: "left",
+      padding: 0.12
+    },
+    color: {legend: true, ...colorScales.infection_stage},
+    symbol: {legend: true, ...shapeScales.exposure_category},
+    style: {background: "transparent", color: "currentColor"},
+    marginLeft: 150,
+    marginRight: 20,
+    marginBottom: 40,
+    marginTop: 30
+  })
+}
+```
+
+## Histograms
+
+### Demographics
+
+#### Age
+```{ojs}
+//| label: cluster-explorer-age
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", {height: "200px"})
+  }
+
+  return Plot.plot({
+    marks: [
+      Plot.barY(ceCurrentData,
+        Plot.groupX({y: "count"}, {x: "age_at_diagnosis", fill: "#6C2C91", tip: true})
+      )
+    ],
+    x: {label: "Age at diagnosis"},
+    y: {label: "Count"},
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marginBottom: 50,
+    marginLeft: 50
+  })
+}
+```
+
+#### Birthplace vs acquition location
+
+```{ojs}
+//| label: cluster-explorer-birthplace-acquisition
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", { height: "200px" })
+  }
+
+  const locationOrder = ["Australia", "Overseas", "Unknown/Other"]
+
+  // Why am I counting insted ofusing op.count()? It's a patch...
+  // I found that in the case whwere all values were one location for
+  // both birth_location and acquisition_location, then op.count() would
+  // return a strange value, like 955 for a cluster of 3.
+  const countByPair = new Map()
+  for (const row of ceCurrentData.objects()) {
+    const acquisition = row.acquisition_location
+    const birth = row.birth_location
+    const key = JSON.stringify([acquisition, birth])
+    countByPair.set(key, (countByPair.get(key) ?? 0) + 1)
+  }
+
+  const heatmapData = locationOrder.flatMap(acquisition_location =>
+    locationOrder.map(birth_location => ({
+      acquisition_location,
+      birth_location,
+      count: countByPair.get(
+        JSON.stringify([acquisition_location, birth_location])
+      ) ?? 0 // Fallback to 0 if no count exists for this pair
+    }))
+  )
+
+  return Plot.plot({
+    padding: 0,
+    color: { scheme: "blues", legend: false },
+    marks: [
+      Plot.cell(heatmapData, {
+        x: "acquisition_location",
+        y: "birth_location",
+        fill: "count",
+        inset: 0.5,
+        title: d =>
+          `Acquisition: ${d.acquisition_location}\nBirth location: ${d.birth_location}\nCount: ${d.count}`
+      }),
+      Plot.text(heatmapData, {
+        x: "acquisition_location",
+        y: "birth_location",
+        text: "count",
+        fill: "orange"
+      })
+    ],
+    x: {
+      label: "Acquisition location",
+      tickRotate: -35,
+      domain: locationOrder
+    },
+    y: {
+      label: "Birth location",
+      tickROtate: -35,
+      domain: locationOrder
+    },
+    style: { background: "transparent", color: "currentColor" },
+    marginBottom: 70,
+    marginLeft: 70
+  })
+}
+```
+
+#### Stage
+```{ojs}
+//| label: cluster-explorer-stage
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", {height: "200px"})
+  }
+
+  return Plot.plot({
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      Plot.barY(ceCurrentData,
+        Plot.groupX(
+          {y: "count" },
+          { x: "infection_stage", fill: "#E61E78", sort: {x: "-y"}, tip: true }
+        )
+    )],
+    x: {label: "Infection stage"},
+    y: {label: "Count"},
+    marginBottom: 50,
+    marginLeft: 50
+  })
+}
+```
+
+###
+
+#### Gender
+```{ojs}
+//| label: cluster-explorer-gender
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", {height: "200px"})
+  }
+
+  return Plot.plot({
+    marks: [
+      Plot.barY(
+        ceCurrentData,
+        Plot.groupX(
+          {y: "count"},
+          { x: "gender", fill: "#6C2C91", tip: true, sort: {x: "-y"} }
+        )
+      )],
+    x: {label: "Gender"},
+    y: {label: "Count"},
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marginBottom: 50,
+    marginLeft: 50
+  })
+}
+```
+
+#### Recent arrival?
+```{ojs}
+//| label: cluster-explorer-recent-arrival
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", { height: "200px" })
+  }
+
+  return Plot.plot({
+    marks: [
+      Plot.barY(
+        ceCurrentData,
+        Plot.groupX(
+          { y: "count" },
+          {
+            x: "recent_arrival",
+            fill: "recent_arrival",
+            tip: true,
+            fill: "#3f3fd8"
+          }
+        )
+      )
+    ],
+    x: { label: "Recent arrival" },
+    y: { label: "Count" },
+    style: { background: "transparent", color: "currentColor" },
+    marginBottom: 50,
+    marginLeft: 50
+  })
+}
+```
+
+#### Exposure
+```{ojs}
+//| label: cluster-explorer-exposure
+{
+  if (ceCurrentData.numRows() === 0) {
+    return noData("No data to display.", {height: "200px"})
+  }
+
+  return Plot.plot({
+    marks: [
+      Plot.barY(
+        ceCurrentData,
+        Plot.groupX(
+          {y: "count"},
+          { x: "exposure_category", fill: "#E61E78", tip: true, sort: {x: "-y"} }
+        )
+      )],
+    x: {label: "Exposure category"},
+    y: {label: "Count"},
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marginBottom: 50,
+    marginLeft: 50
+  })
+}
+```

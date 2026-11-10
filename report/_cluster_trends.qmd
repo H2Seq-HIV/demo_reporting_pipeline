@@ -1,0 +1,388 @@
+# Cluster Trends
+
+```{ojs}
+//| label: cluster-trends-setup
+//| output: false
+
+import { linelist, cutoff } from "_data.qmd"
+// cutoffDate & cutoffDisplay globally availale from _ojs_setup.qmd
+
+```
+
+## Controls {.sidebar}
+
+**Time bin:**
+```{ojs}
+viewof timeBin = Inputs.radio(
+  new Map([
+    ["Half-year", "half-year"],
+    ["Year", "year"],
+    ["Custom split", "split"]
+  ]),
+  { value: "half-year" }
+)
+```
+
+```{ojs}
+viewof splitDate = {
+  if (timeBin === "split") {
+    return Inputs.date({ label: "Split at:", value: cutoff })
+  }
+  // Return a dummy viewof that emits null
+  const span = document.createElement("span")
+  span.value = null
+  return span
+}
+```
+
+```{ojs}
+//| label: cluster-trends-apply-bin-dates
+//| output: false
+
+trendsData = {
+  const rows = aq.table(linelist).objects()
+  const withBinnedDates = rows.map(d => {
+    const bin = binDate(d.date_onset, timeBin, splitDate)
+    return { ...d, period: bin.period, period_label: bin.period_label }
+  })
+  return aq.from(withBinnedDates)
+}
+
+// Extract updated periods and labels for inputs and plots below
+periods = trendsData
+  .select("period", "period_label")
+  .dedupe()
+  .orderby("period")
+
+periodLabels = periods.array("period_label")
+periodValues = periods.array("period")
+```
+
+---
+
+**Include data after:**
+```{ojs}
+//| label: cluster-trends-min-period-input
+
+viewof minPeriod = Inputs.select(
+  new Map(periodLabels.map((l, i) => [l, periodValues[i]])),
+  { value: periodValues.length > 10 ? periodValues[periodValues.length - 10] : periodValues[0] }
+)
+```
+
+---
+
+**Group/colour by:**
+```{ojs}
+//| label: cluster-trends-grouping-input
+
+viewof _groupCol = Inputs.radio(
+  new Map([
+    ["None", "none"],
+    ["Acquisition location", "acquisition_location"],
+    ["Exposure", "exposure_category"],
+    ["Acquisition & Exposure", "both"]
+  ]),
+  { value: "none" }
+)
+```
+
+```{ojs}
+//| label: cluster-trends-convert-grouping-input
+//| output: false
+
+// Convert _groupCol to an array, which is easier to inject into the plot code with spread syntax
+groupCol = {
+  if (_groupCol === "none") return []
+  if (_groupCol === "both") return ["acquisition_location", "exposure_category"]
+  return [_groupCol] // either acquisition_location or exposure_category
+}
+```
+
+
+```{ojs}
+//| label: cluster-trends-apply-grouping-and-date-filter
+//| output: false
+
+sizeByPeriod = {
+  const cols = ["period", "period_label", "cluster_size", ...groupCol]
+  const totalCols = ["period", "period_label", ...groupCol]
+
+  return trendsData
+    .filter(aq.escape(d => d.period >= minPeriod))
+    .groupby(totalCols)
+    .derive({ total: op.count() })
+    .groupby(cols)
+    .rollup({ count: op.count(), total: op.any("total") })
+}
+```
+
+## Content {.tabset}
+
+### Cluster size
+
+#### Row {height="67.5%"}
+
+```{ojs}
+//| label: cluster-trends-barplot
+//| expandable: true
+
+{
+  const barplotData = sizeByPeriod
+    .derive({ prop: d => d.count / d.total })
+    .orderby("period")
+
+  const data = barplotData.objects()
+
+  // Ensure labels in right order, bc are not dates
+  const labelOrder = trendsData
+    .select("period", "period_label")
+    .dedupe()
+    .orderby("period")
+    .filter(aq.escape(d => d.period >= minPeriod))
+    .array("period_label")
+
+  const labelLookup = Object.fromEntries(
+    periods.objects().map(d => [d.period, d.period_label])
+  )
+  let plotData = data.map(d => ({ ...d, period_label: labelLookup[d.period] }))
+
+  if (selectedRows && selectedRows.length > 0 && selectedRows.length < sizeTableRows.length) {
+    const makeKey = r => [r.period, ...groupCol.map(c => r[c])].join("|")
+    const selectedKeys = new Set(selectedRows.map(makeKey))
+    plotData = plotData.filter(d => selectedKeys.has(makeKey(d)))
+  }
+
+  // Configure plot layout based on grouping
+  const multiFacet = groupCol.length > 1
+  const singleFacet = groupCol.length === 1
+  let fxConfig, xConfig, fyConfig, markFx, markX, markFy // To be objects for Plot
+
+  // Lookup for facet labels
+  const colLabels = {
+    acquisition_location: "Acquisition location",
+    exposure_category: "Exposure"
+  }
+
+  if (multiFacet) {
+    fxConfig = { label: colLabels["exposure_category"] }
+    xConfig = { label: "Period", type: "band", tickRotate: -45, domain: labelOrder }
+    fyConfig = { label: colLabels["acquisition_location"], tickRotate: -90 }
+    markFx = "exposure_category"
+    markX = "period_label"
+    markFy = { fy: "acquisition_location" }
+  } else if (singleFacet) {
+    fxConfig = { label: "Period", padding: 0.1 }
+    xConfig = { axis: null }
+    fyConfig = { label: colLabels[groupCol[0]], tickRotate: -90 }
+    markFx = "period_label"
+    markX = "cluster_size"
+    markFy = { fy: groupCol[0] }
+  } else {
+    fxConfig = { label: "Period", padding: 0.1 }
+    xConfig = { axis: null }
+    fyConfig = undefined
+    markFx = "period_label"
+    markX = "cluster_size"
+    markFy = {}
+  }
+
+  const tooltip = d => {
+    let s = `${d.cluster_size}\n` + `${d.period_label}\n` + `${d.count} (${Math.round(d.prop * 100)}%)`
+    if (groupCol.length > 0) s += '\n' + groupCol.map(c => d[c]).join(' & ')
+    return s
+  }
+
+  return Plot.plot({
+    fx: fxConfig,
+    x: xConfig,
+    y: { percent: true, label: "% sequences" },
+    fy: fyConfig,
+    color: { legend: true, ...(colorScales["cluster_size"] ?? {}) },
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      Plot.barY(plotData, {
+        fx: markFx, x: markX, ...markFy,
+        y: "prop", fill: "cluster_size",
+        tip: true, title: tooltip
+      }),
+      Plot.ruleY([0])
+    ],
+    height: 400,
+    marginBottom: 60
+  })
+}
+```
+
+#### Row {height="32.5%"}
+
+```{ojs}
+//| label: cluster-trends-size-table
+//| expandable: false
+
+// TODO: Add singleton back in!
+sizeTableData = sizeByPeriod
+  .groupby(["period", "period_label", ...(groupCol ?? [])])
+  .pivot("cluster_size", "count")
+  .derive({
+    Singleton: d => d.Singleton ?? 0,
+    Pair: d => d.Pair ?? 0,
+    Small: d => d.Small ?? 0,
+    Large: d => d.Large ?? 0,
+    Total: d => (d.Singleton ?? 0) + (d.Pair ?? 0) + (d.Small ?? 0) + (d.Large ?? 0)
+  })
+  .orderby(aq.desc("period_label"))
+
+sizeTableRows = sizeTableData.objects()
+
+viewof selectedRows = Inputs.table(sizeTableRows, {
+  rows: 10,
+  layout: "auto",
+  required: false,
+  columns: ["period_label", ...(groupCol ?? []), "Total", "Singleton", "Pair", "Small", "Large"],
+  header: {
+    period_label: "Period",
+    acquisition_location: "Acquisition",
+    exposure_category: "Exposure"
+  },
+  index: false
+})
+```
+
+### Large cluster timelines
+
+#### {.toolbar}
+
+```{ojs}
+//| label: cluster-trends-timeline-sizefilter
+
+viewof largeOnly = Inputs.toggle({ label: "Large clusters only", value: true })
+viewof activeOnly = Inputs.toggle({ label: "Active clusters only", value: false })
+
+```
+
+```{ojs}
+//| label: cluster-trends-timeline-apply-toggles
+//| output: false
+
+timelineData = {
+  let t = trendsData
+    .filter(aq.escape(d => largeOnly
+      ? d.cluster_size === "Large"
+      : (d.cluster_size === "Small" || d.cluster_size === "Large")))
+    .derive({ is_new: aq.escape(d => new Date(d.date_onset) >= new Date(cutoff) ? 1 : 0) })
+    .groupby("cluster_id")
+
+  if (activeOnly) t = t.filter(d => op.max(d.is_new) > 0)
+
+  return t
+}
+
+```
+
+#### Row {height="90%"}
+##### Timeline plot {width="67.5%"}
+
+```{ojs}
+{
+  // Get the cluster IDs to show
+  const ids = selectedClusters && selectedClusters.length > 0 && selectedClusters.length < clusterSummaries.length
+    ? new Set(selectedClusters.map(d => d.cluster_id))
+    : new Set(clusterSummaries.map(d => d.cluster_id))
+
+  // apply table filtering
+  const plotData = timelineData
+    .objects()
+    .filter(d => ids.has(d.cluster_id))
+    .map(d => ({ ...d, date_onset: new Date(d.date_onset) }))
+
+  // Compute spans (min/max date per cluster) for segments
+  const spans = d3.rollups(plotData, v => ({
+      min: d3.min(v, d => d.date_onset),
+      max: d3.max(v, d => d.date_onset)
+    }), d => d.cluster_id)
+    .map(([cluster_id, s]) => ({ cluster_id, ...s }))
+
+  const clusterOrder = [...ids].sort().reverse()
+
+  // Get min date corresponding to user input time cutoff.
+  // Defaults to min date if custom split selected
+  const minDate = timeBin === "split"
+    ? d3.min(plotData, d => d.date_onset)
+    : new Date(minPeriod)
+
+  return Plot.plot({
+    x: {
+      label: "Date of notification",
+      type: "utc",
+      domain: [minDate, d3.max(plotData, d => d.date_onset)]
+    },
+    y: { domain: clusterOrder, label: "Cluster ID", axis: null },
+    color: groupCol.length > 0
+      ? { legend: true, ...(colorScales[groupCol[0]] ?? {}) }
+      : { ...(colorScales["cluster_size"] ?? {}) },
+    symbol: groupCol.length > 1
+      ? { legend: true, ...(shapeScales[groupCol[1]] ?? {}) }
+      : undefined,
+    height: Math.max(500, clusterOrder.length * 18),
+    marginLeft: 60,
+    marginRight: 80,
+    style: { background: "transparent", color: "currentColor" }, // Registers darkmode
+    marks: [
+      Plot.ruleX([minDate], { stroke: "#ddd" }),
+      Plot.ruleY(spans, {
+        y: "cluster_id", x1: "min", x2: "max", stroke: "#dddddd"
+      }),
+      Plot.text(spans, {
+        y: "cluster_id", x: "max", text: "cluster_id",
+        dx: 8, textAnchor: "start", fontSize: 12
+      }),
+      Plot.dot(plotData, {
+        x: "date_onset",
+        y: "cluster_id",
+        fill: groupCol[0] ?? "cluster_size",
+        fillOpacity: 0.7,
+        symbol: groupCol[1],
+        stroke: "#000000", strokeWidth: .2,
+        r: 4.0, tip: true,
+        title: d => `${d.cluster_id}${groupCol.length > 0 ? '\n' + groupCol.map(c => d[c]).join(' / ') : ''}`
+      })
+    ]
+  })
+}
+```
+
+##### Summary table {width="32.5%"}
+```{ojs}
+//| label: cluster-trends-summary-table
+//| expandable: false
+
+clusterSummaries = timelineData
+    .rollup({
+      size: op.count(),
+      n_new: d => op.sum(d.is_new)
+    })
+    .objects()
+
+viewof selectedClusters = Inputs.table(clusterSummaries, {
+  rows: 10,
+  layout: "auto",
+  required: false,
+  columns: ["cluster_id", "size", "n_new"],
+  sort: "cluster_id",
+  reverse: true,
+  header: {
+    cluster_id: "Cluster",
+    size: "Total",
+    n_new: `Since ${cutoffDisplay}`
+  },
+  index: false
+})
+
+```
+
+::: {.callout-tip}
+## What is cluster ID?
+
+Cluster ID is `[year]-[number]`, where `year` is the year of the earliest sample in the cluster, and `number` is the order of the cluster from that year (e.g. `2023-014` would have its earliest sample in 2023, and be the 14th cluster identified that year).
+:::

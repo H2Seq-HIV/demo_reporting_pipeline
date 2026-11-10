@@ -1,0 +1,668 @@
+[
+  {
+    "inputSequence": {
+      "header": "first_sequence"
+    },
+    "alignedGeneSequences": [
+      {
+        "SDRM": [
+          {
+            "text": "D30N"
+          }
+        ]
+      },
+      {
+        "SDRM": [
+          {
+            "text": "K98Z"
+          }
+        ]
+      }
+    ],
+    "firstTenCloseSubtypes": [
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "3.85%",
+        "referenceAccession": "AF286232"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "3.99%",
+        "referenceAccession": "AF067158"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "3.99%",
+        "referenceAccession": "AY967806"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.33%",
+        "referenceAccession": "JQ898276"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.40%",
+        "referenceAccession": "KM050000"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.47%",
+        "referenceAccession": "KU341730"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.60%",
+        "referenceAccession": "JQ898248"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.60%",
+        "referenceAccession": "KY658708"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.95%",
+        "referenceAccession": "AB097871"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "4.95%",
+        "referenceAccession": "KU341724"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.02%",
+        "referenceAccession": "KU820825"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.02%",
+        "referenceAccession": "KX907337"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.09%",
+        "referenceAccession": "AY713415"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.15%",
+        "referenceAccession": "AY734550"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.29%",
+        "referenceAccession": "JQ898251"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.36%",
+        "referenceAccession": "AF457054"
+      },
+      {
+        "displayWithoutDistance": "B + C",
+        "distancePcnt": "5.36%",
+        "referenceAccession": "AY008717"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.36%",
+        "referenceAccession": "AY463228"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.36%",
+        "referenceAccession": "AY901980"
+      },
+      {
+        "displayWithoutDistance": "C",
+        "distancePcnt": "5.36%",
+        "referenceAccession": "JQ898249"
+      }
+    ],
+    "bestMatchingSubtype": {
+      "display": "C (3.85%)"
+    },
+    "drugResistance": [
+      {
+        "drugScores": [
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "ATV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "DRV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "FPV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "IDV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "LPV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "NFV"
+            },
+            "level": 5
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "SQV/r"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "PI"
+            },
+            "drug": {
+              "displayAbbr": "TPV/r"
+            },
+            "level": 1
+          }
+        ]
+      },
+      {
+        "drugScores": [
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "ABC"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "AZT"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "D4T"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "DDI"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "FTC"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "ISL"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "3TC"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NRTI"
+            },
+            "drug": {
+              "displayAbbr": "TDF"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "DOR"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "DPV"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "EFV"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "ETR"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "NVP"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "NNRTI"
+            },
+            "drug": {
+              "displayAbbr": "RPV"
+            },
+            "level": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "inputSequence": {
+      "header": "second_sequence"
+    },
+    "alignedGeneSequences": [
+      {
+        "SDRM": []
+      }
+    ],
+    "firstTenCloseSubtypes": [
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "4.92%",
+        "referenceAccession": "KJ704787"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.18%",
+        "referenceAccession": "FJ647145"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.18%",
+        "referenceAccession": "U34603"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.30%",
+        "referenceAccession": "L31963"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.43%",
+        "referenceAccession": "HQ026550"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.56%",
+        "referenceAccession": "AB485642"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.56%",
+        "referenceAccession": "AY173951"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.56%",
+        "referenceAccession": "AY751406"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.68%",
+        "referenceAccession": "M26727"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.81%",
+        "referenceAccession": "U43096"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.93%",
+        "referenceAccession": "AY561244"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "5.93%",
+        "referenceAccession": "JF320191"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.06%",
+        "referenceAccession": "JQ901049"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.19%",
+        "referenceAccession": "AF042100"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.19%",
+        "referenceAccession": "D10112"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.19%",
+        "referenceAccession": "DQ085874"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.19%",
+        "referenceAccession": "DQ823364"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.19%",
+        "referenceAccession": "JN251901"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.31%",
+        "referenceAccession": "EF514699"
+      },
+      {
+        "displayWithoutDistance": "B",
+        "distancePcnt": "6.31%",
+        "referenceAccession": "EF694037"
+      }
+    ],
+    "bestMatchingSubtype": {
+      "display": "B (4.92%)"
+    },
+    "drugResistance": [
+      {
+        "drugScores": [
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "BIC"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "CAB"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "DTG"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "EVG"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "RAL"
+            },
+            "level": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "inputSequence": {
+      "header": "third_sequence"
+    },
+    "alignedGeneSequences": [
+      {
+        "SDRM": []
+      }
+    ],
+    "firstTenCloseSubtypes": [
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.28%",
+        "referenceAccession": "AB480048"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.40%",
+        "referenceAccession": "AJ286133"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.40%",
+        "referenceAccession": "AY444809"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.63%",
+        "referenceAccession": "AJ508595"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.63%",
+        "referenceAccession": "KP411843"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.75%",
+        "referenceAccession": "AB286859"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.75%",
+        "referenceAccession": "JX447138"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.75%",
+        "referenceAccession": "KT869073"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.75%",
+        "referenceAccession": "KX228823"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.75%",
+        "referenceAccession": "KX389614"
+      },
+      {
+        "displayWithoutDistance": "G",
+        "distancePcnt": "4.86%",
+        "referenceAccession": "AB287004"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.86%",
+        "referenceAccession": "JF320297"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.86%",
+        "referenceAccession": "KP411844"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.86%",
+        "referenceAccession": "KT124792"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "AB049811"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "AF107770"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "AF377954"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "FJ388896"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "FJ694791"
+      },
+      {
+        "displayWithoutDistance": "CRF02_AG",
+        "distancePcnt": "4.98%",
+        "referenceAccession": "JX500706"
+      }
+    ],
+    "bestMatchingSubtype": {
+      "display": "CRF02_AG (4.28%)"
+    },
+    "drugResistance": [
+      {
+        "drugScores": [
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "BIC"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "CAB"
+            },
+            "level": 2
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "DTG"
+            },
+            "level": 1
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "EVG"
+            },
+            "level": 2
+          },
+          {
+            "drugClass": {
+              "name": "INSTI"
+            },
+            "drug": {
+              "displayAbbr": "RAL"
+            },
+            "level": 2
+          }
+        ]
+      }
+    ]
+  }
+]

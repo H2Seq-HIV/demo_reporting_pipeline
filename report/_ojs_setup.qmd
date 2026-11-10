@@ -1,0 +1,289 @@
+```{ojs}
+//| label: setup-libs
+//| output: false
+
+import { aq, op } from "@uwdata/arquero"   // Data wrangling
+L = require("leaflet")                     // Leaflet mapping
+```
+
+```{r}
+#| label: inject-carto-api-key
+#| output: false
+
+ojs_define(cartoAPIKey = Sys.getenv("CARTO_API_KEY"))
+
+```
+
+```{ojs}
+//| label: setup-scales-load
+//| output: false
+
+// Centralised colour/shape scales (see assets/scales.json).
+
+scales = FileAttachment("assets/scales.json").json()
+colorScales = scales.color
+shapeScales = scales.shape
+```
+
+```{ojs}
+//| label: setup-leaflet-css
+//| output: false
+
+// Leaflet CSS must be injected manually when using require().
+// Only added once via id check.
+{
+  if (!document.getElementById("leaflet-css")) {
+    document.head.appendChild(Object.assign(document.createElement("link"), {
+      id: "leaflet-css",
+      rel: "stylesheet",
+      href: "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    }));
+  }
+}
+```
+
+<!-- So Observable Plot picks up colour change on light/dark mode -->
+<style>
+/* Observable Plot tooltip dark mode */
+.cell-output-display svg [aria-label="tip"] {
+  --plot-background: var(--bs-body-bg, white);
+}
+
+/* Some tips have fill on a child g element */
+.cell-output-display svg [aria-label="tip"] > g[fill="white"] {
+  fill: var(--bs-body-bg, white) !important;
+}
+
+/* Some tips have fill directly on the tip element */
+.cell-output-display svg [aria-label="tip"][fill="white"] {
+  fill: var(--bs-body-bg, white) !important;
+}
+
+/* Ensure text is visible */
+.cell-output-display svg [aria-label="tip"] text {
+  fill: var(--bs-body-color, black) !important;
+}
+</style>
+
+<!-- ── General Utilities ─────────────────────────────────────────── -->
+
+```{ojs}
+//| label: setup-utils
+//| output: false
+
+/**
+ * Display a styled placeholder when no data is available.
+ * @param {string} message - Text to display
+ * @param {Object} opts
+ * @param {"info"|"warning"} opts.type - Style variant (default: "info")
+ * @param {string|null} opts.height - CSS min-height (default: null)
+ * @returns {HTMLElement}
+ */
+function noData(message, {type = "info", height = null} = {}) {
+  const styles = {
+    info:    { bg: "#f5f5f5", color: "#666",    icon: "ℹ️ " },
+    warning: { bg: "#FFF3CD", color: "#856404", icon: "⚠️ " }
+  }
+  const s = styles[type] || styles.info
+  const h = height ? `min-height:${height}` : ""
+  return html`<div style="display:flex;align-items:center;justify-content:center;${h};background:${s.bg};color:${s.color};padding:0.75rem;border-radius:4px;font-size:0.9em;text-align:center;">
+    <span>${s.icon}<strong>${message}</strong></span>
+  </div>`
+}
+
+/**
+ * Format a date as a half-year label, e.g. "2024-H1".
+ * @param {Date} date
+ * @returns {string}
+ */
+function labelHalfYear(date) {
+  const yr = date.getFullYear()
+  const h = date.getMonth() < 6 ? "H1" : "H2"
+  return yr + "-" + h
+}
+
+
+/**
+ * Extract sorted unique values from a column in an Arquero table.
+ * @param {Object} table - Arquero table
+ * @param {string} col - Column name
+ * @returns {Array}
+ */
+function uniqueValues(table, col) {
+  return [...new Set(table.array(col))].sort()
+}
+
+/**
+ * Format a number as a percentage string, e.g. 0.456 → "45.6%".
+ * @param {number|null} value
+ * @param {number} digits - Decimal places (default: 1)
+ * @returns {string}
+ */
+function formatPercent(value, digits = 1) {
+  return value == null ? "–" : value.toFixed(digits) + "%"
+}
+
+/**
+ * Replace undefined/null values with 0 across all columns of an Arquero table.
+ * @param {Object} table - Arquero table
+ * @returns {Object} Imputed Arquero table
+ */
+function fillZero(table) {
+  const fills = {}
+  for (const col of table.columnNames()) {
+    fills[col] = () => 0
+  }
+  return table.impute(fills)
+}
+
+/**
+ * Group and aggregate an Arquero table. Sums valueCol if provided,
+ * otherwise counts rows.
+ * @param {Object} table - Arquero table
+ * @param {string[]} groupCols - Columns to group by
+ * @param {string|null} valueCol - Column to sum, or null to count rows
+ * @returns {Object} Aggregated Arquero table with column "n"
+ */
+function countGroupwise(table, groupCols, valueCol) {
+  if (valueCol) {
+    return table
+      .rename({ [valueCol]: "_val" })
+      .groupby(groupCols)
+      .rollup({ n: d => op.sum(d._val) })
+      .orderby(groupCols)
+  }
+  return table
+    .groupby(groupCols)
+    .rollup({ n: d => op.count() })
+    .orderby(groupCols)
+}
+```
+
+```{ojs}
+//| label: setup-date-bin
+//| output: false
+
+/**
+ * Bin dates into periods (half-year, quarter, year, or split by a cutoff date).
+ * @param {Date|string} dateCol - Date column (Date objects or ISO strings)
+ * @param {string} binSize - "half-year" (default), "year", or "split"
+ * @param {Date|string} [splitDate] - Cutoff date for "split" binning
+ * @returns {Object} Object with fields "period" and "period_label"
+ */
+function binDate(dateStr, timeBin = "half-year", splitDate = null) {
+  const d = new Date(dateStr)
+  const y = d.getUTCFullYear()
+  const m = d.getUTCMonth()  // 0-indexed
+
+  if (timeBin === "year") {
+    return { period: `${y}-01-01`, period_label: `${y}` }
+  } else if (timeBin === "quarter") {
+    const q = Math.floor(m / 3) + 1
+    const mStart = String((q - 1) * 3 + 1).padStart(2, "0")
+    return { period: `${y}-${mStart}-01`, period_label: `${y}-Q${q}` }
+  } else if (timeBin === "split") {
+    const splitD = new Date(splitDate)
+    const label = d < splitD ? "Before" : "After"
+    const sortKey = d < splitD ? "0" : "1"
+    return { period: sortKey, period_label: label }
+  } else { // half-year default
+    const h = m < 6 ? 1 : 2
+    const mStart = h === 1 ? "01" : "07"
+    return { period: `${y}-${mStart}-01`, period_label: `${y}-H${h}` }
+  }
+}
+```
+<!-- ── Leaflet Utilities ─────────────────────────────────────────── -->
+
+```{ojs}
+//| label: setup-geodata
+//| output: false
+
+// GeoJSON with Location boundaries as Australian state outlines.
+// Properties: { name: string, type: "location" | "state" }
+locationsGeo = FileAttachment("assets/locations.geojson").json()
+console.log("Loaded Location/state GeoJSON:", locationsGeo)
+```
+
+```{ojs}
+//| label: setup-leaflet-utils
+//| output: false
+
+/**
+ * Fill colours for choropleth based on count values and a colour interpolator.
+ * Offset of .15 ensures low fills are visible. N=max still maps to 1.
+ * Uses d3.interpolatePurples by default, but can be customized.
+ * @param {number} n - Count value for the region
+ * @param {number} max - Maximum count value across all regions (for scaling)
+ * @returns {string} CSS colour string
+ */
+fillColor = (n, max) => d3.interpolatePurples(n === 0 ? 0 : 0.15 + (0.85 * (n / max)))
+
+/**
+ * Return a Leaflet style object for a GeoJSON feature, coloured by
+ * a count lookup. States get a lighter border than Locations.
+ * @param {Object} f - GeoJSON feature
+ * @param {Object} lookup - { regionName: count } plain object
+ * @param {number} max - Maximum count for scaling
+ * @returns {Object} Leaflet path options
+ */
+function geoStyle(f, lookup, max) {
+  return {
+    fillColor: fillColor(lookup[f.properties.name] || 0, max),
+    fillOpacity: 0.7,
+    weight: 1,
+    color: f.properties.type === "state" ? "#999" : "#666"
+  };
+}
+
+/**
+ * Bind a tooltip showing region name and count to a Leaflet layer.
+ * @param {Object} f - GeoJSON feature
+ * @param {Object} layer - Leaflet layer
+ * @param {Object} lookup - { regionName: count } plain object
+ */
+function geoTooltip(f, layer, lookup) {
+  const count = lookup[f.properties.name] || 0;
+  layer.bindTooltip(`${f.properties.name}: ${count}`);
+}
+
+/**
+ * Add a continuous gradient legend to a Leaflet map.
+ * @param {Object} map - Leaflet map instance
+ * @param {Object} opts
+ * @param {Function} opts.interpolator - d3 colour interpolator (default: d3.interpolatePurples)
+ * @param {number} opts.max - Upper bound label (default: 1)
+ * @param {string} opts.title - Legend heading (default: "Count")
+ * @param {string} opts.position - Leaflet control position (default: "bottomleft")
+ * @returns {Object} Leaflet control (for later removal if needed)
+ */
+function gradientLegend(map, {
+  interpolator = d3.interpolatePurples,
+  max = 1,
+  title = "Count",
+  position = "bottomleft"
+} = {}) {
+  const stops = [0, 0.25, 0.5, 0.75, 1]
+    .map(t => `${interpolator(t === 0 ? 0 : .15 + (t*.85))} ${t * 100}%`)
+    .join(", ");
+  const ctrl = L.control({position});
+  ctrl.onAdd = () => {
+    const div = L.DomUtil.create("div");
+    div.innerHTML = `
+        <div style="background:var(--bs-body-bg, white); color:var(--bs-body-color, black);
+              padding:8px; border-radius:4px;
+              box-shadow:0 1px 4px rgba(0,0,0,.3); font-size:11px">
+        <div style="margin-bottom:4px"><strong>${title}</strong></div>
+        <div style="display:flex; align-items:center; gap:4px">
+          <span>0</span>
+          <div style="width:80px; height:12px; border-radius:2px;
+                      background:linear-gradient(to right, ${stops})"></div>
+          <span>${max}</span>
+        </div>
+      </div>`;
+    return div;
+  };
+  ctrl.addTo(map);
+  return ctrl;
+}
+```

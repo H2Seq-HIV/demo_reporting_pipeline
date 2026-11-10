@@ -1,0 +1,73 @@
+# About
+
+## Row 1 {height = 62.5%}
+
+::: {.card title="Purpose"}
+- This is a demo version of the H2Seq NSW HIV pipeline. 
+
+- The dashboard rendered herein includes simulated notification data simulated atop 347 openly available sequences from [Di Giallonardo et al., 2021](https://doi.org/10.1002/jia2.25655). 
+
+- [It is for demonstartion purposes only, and none of the vidualisations or results here have anything to do with reality.]{.mark}
+:::
+
+::: {.card title="Protecting identity"}
+The developers of this report acknowledge that projecting molecular epidemiological results to the level
+of the individual can potentially result in devastating outcomes for PLWH due to criminalisation and stigma. We further
+believe that trust between the community, public health authorities, and clinical prividers is fundamental to this
+report being mutually beneficial. To this end, the report was designed under the following constraints, which reflect UNAIDS guidelines on proper use of molecular epidemiology for HIV [@unaids_2025].
+
+- All data incorporated in this report is de-identified via cryptographic hashing of initals and DOB information [@langevin_2026_distributed].
+- All clustering methods are non-directional. That is, there is no phylogenetics used in this report to implicate directionality between clustered individuals.
+- Diagrams do not explicitly link individuals, nor is the evolutionary distance between individual samples ever shown. [Therefore, for any cluster diagram, one cannot reasonably point to individual transmission events. This step is taken in acknowledgment of the fact that while non-directional clustering does not imply person-to-person transmission, it can still be used alongside circumstantial evidence to implicate individuals.]{.mark}
+:::
+
+## Row 2 {height = 37.5%}
+
+### {.tabset}
+
+::: {.card title="Sections"}
+This report is structured into 5 sections:
+
+- **Topline** — Key numbers for `r config$report$cutoff_lower` to `r config$report$cutoff_upper`.
+
+- **Drug resistance** — Rates of resistance to drug classes, drugs, and surveillance drug resistance mutations (SDRMs).
+
+- **Cluster trends** — Cluster size over time, which can be broken down for overseas/local acquisition and exposure categories.
+
+- **Cluster explorer** — Visualises metadata for selections of clusters.
+
+- **Supplementary** — Supplementary results, details of data preparation and analysis.
+:::
+
+
+::: {.card title="Key terms"}
+| Abbreviation | Definition |
+|--|---------|
+| PLWH | People/person living with HIV |
+| Cluster | 2 or more sequences from PLWH that fall below a specified genetic distance threshold |
+| Active cluster | A cluster where at least one sample originates in the current reporting period |
+| Singleton | An unclustered sequence |
+| Pair | Two sequences forming a cluster of size 2 |
+| Small cluster | A cluster of 3–9 individuals |
+| Large cluster | A cluster of 10 or more individuals |
+| SDRM | Surveillance drug resistance mutation |
+| *pol* | HIV polymerase gene, with _prrt_ and _in_ regions |
+
+:::
+
+::: {.card title="Brief methods"}
+
+| Step | Tool | Details |
+|------|------|---------|
+| Data preparation | Custom pipeline, [cawlign](https://github.com/veg/cawlign) | Sequences & notifications checked, linked to notifications, aligned to _pol_, and filtered |
+| Drug resistance | [sierrapy](https://hivdb.stanford.edu/dr-summary/comments/PI/) | Stanford HIVdb algorithm for resistance interpretation and SDRM annotation |
+| Clustering | [HIV-TRACE](https://github.com/veg/hivtrace) | TN93 pairwise distance clustering at `r config$hivtrace$threshold` subs/site |
+
+See the Supplementary tab for more details.
+:::
+
+### Attribution column
+
+::: {.card title="Data and attribution"}
+The dashboard rendered herein includes simulated notification data simulated atop 347 openly available sequences from [Di Giallonardo et al., 2021](https://doi.org/10.1002/jia2.25655)
+:::

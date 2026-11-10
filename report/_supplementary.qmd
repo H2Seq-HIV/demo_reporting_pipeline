@@ -1,0 +1,357 @@
+# Supplementary
+## {.tabset  expandable="false"}
+
+### Results {.tabset}
+
+```{r}
+#| title: Linkage success
+#| label: fig-linkage-rates
+#| fig-cap: "The total number of NSW notifications each year and the total number of sequences linked to notifications each year. Linkage is based on a deterministic hash+salt id derived from 2x2 name codes and DOB."
+
+
+df <- linelist %>%
+  mutate(half_year = floor_date(date_onset, "1 year")) %>%
+  group_by(half_year) %>%
+  summarise(
+    n_notifications = n(),
+    n_linked = sum(linked),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = c(n_notifications, n_linked),
+    names_to = "stream",
+    values_to = "n"
+  ) %>%
+  mutate(
+    stream = factor(stream, levels = c(
+      "n_notifications",
+      "n_linked"
+    ))
+  )
+
+
+
+ggplot(df, aes(x = half_year, y = n, group = stream, color = stream)) +
+  geom_line() +
+  geom_point(alpha = 0.7) +
+  scale_colour_manual(
+    name = NULL,
+    values = c(
+      "n_linked"   = "dodgerblue",
+      "n_notifications" = "red"
+    ),
+    labels = c(
+      "n_linked"   = "Notifications linked",
+      "n_notifications" = "Notifications total"
+    )
+  ) +
+	xlab("Date (yearly bins)") + ylab("Count") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+```
+
+
+
+```{r}
+#| title: Subtype over time
+#| label: fig-subtype-distribution
+#| fig-cap: "Distribution of HIV subtypes over time. Subtype is determined by the Stanford HIVdb algorithm."
+#| fig-width: 14
+
+library(patchwork)
+
+df <- linelist %>%
+  filter(!is.na(subtype)) %>% # excludes unlinked seqs
+  select(subtype, date_onset) %>%
+  mutate(half_year = floor_date(date_onset, "6 months")) %>%
+  group_by(subtype, half_year) %>%
+  summarise(n = n(), .groups = "drop") %>%
+  mutate(subtype = if_else(
+    subtype %in% c("B", "C", "CRF01_AE", "CRF02_AG", "F", "Unknown"),
+    subtype, "Other"
+  ))
+
+p1 <- df %>%
+  ggplot(aes(x = half_year, y = n, fill = subtype)) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set2") +
+  xlab("Date") + ylab("Count") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+p2 <- df %>%
+  group_by(half_year) %>%
+  mutate(prop = 100 * n / sum(n)) %>%
+  ggplot(aes(x = half_year, y = prop, fill = subtype)) +
+  geom_col() +
+  scale_fill_brewer(palette = "Set2") +
+  xlab("Date") + ylab("Percentage") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+
+(p1 + p2) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = 'bottom', legend.direction = 'horizontal')
+```
+
+
+```{r}
+#| title: Onset to sample collection lag
+#| label: fig-sampling-lag
+#| fig-cap: "Distribution of the number of days between calculated onset and date of sample collection, for each linked sample passing filtering."
+
+df <- linelist %>%
+  mutate(lag = date_collection - date_onset)
+
+mean_lag <- mean(df$lag, na.rm = TRUE)
+
+ggplot(df, aes(x = lag)) +
+  geom_vline(xintercept = mean_lag, linetype = "dashed", color = "grey") +
+  geom_histogram(binwidth = 45, fill = "dodgerblue", color = "white") +
+  annotate(
+    "label",
+    x = mean_lag + 60, y = 700,
+    label = paste0("Mean: ", round(mean_lag, 1), " days")
+  ) +
+  xlab("Time from CD4 projected onset to sample collection (days)") +
+  ylab("Count") +
+  theme_minimal()
+```
+
+```{r}
+#| title: Polymerase coverage
+#| label: fig-polymerase-coverage
+#| fig-cap: "The percentage of samples (those passing filtering) with an A/T/G/C base at each position in _pol_. Labels indicate separately sequenced regions _prrt_ and _in_."
+
+coverage_df %>%
+  mutate(position = position + 2253) %>% # Adjust to genome coordinate
+  ggplot(aes(x = position, y = round(100 * coverage, 2))) +
+  geom_line(color = "steelblue") +
+  annotate(
+    "segment", x = 2253, xend = 3870, y = 105, yend = 105,
+         color = "darkgrey", linewidth = 1) +
+    annotate(
+    "text", x = (2253 + 3870) / 2, y = 107, label = "prrt", vjust = 0) +
+    annotate(
+    "segment", x = 4230, xend = 5096, y = 105, yend = 105,
+         color = "darkgrey", linewidth = 1) +
+    annotate(
+    "text", x = (4230 + 5096) / 2, y = 107, label = "in", vjust = 0) +
+  xlab("Genome position") +
+  ylab("Coverage (% sequences with A/T/G/C)") +
+  theme_minimal()
+```
+
+
+
+```{r}
+#| title: Autotune
+#| label: fig-autotune
+#| fig-cap: "The autotune algorithm by [@weaver_auto-tune_2024] generates a score (y-axis) for data re-clustered over a range of thresholds (in this case 0.0-0.05). Higher score values indicate more even clustering that balance the number of clusters and their sizes, with values above 1.9 being preferable. The dashed vertical line indicates the distance threshold used to generate this report. If the threshold corresponding to the highest score is substantially diverged from this threshold, then it may need revision."
+autotune %>%
+    ggplot(aes(x = Threshold, y = Score, col = Score)) +
+    xlab("Distance threshold") +
+    geom_vline(
+        xintercept = config$hivtrace$threshold,
+        linetype = "dashed",
+        color = "black"
+    ) +
+		geom_line() +
+    geom_point(size = 1) +
+		scale_color_viridis_c(option = "plasma") +
+    theme_minimal()
+```
+
+
+### Data preparation
+
+#### Col 1 {.tabset expandable="false"}
+
+```{r}
+#| title: Flowchart
+#| label: fig-pipeline-flowchart
+#| fig-cap: "Pipeline attrition by data stream. Arrow labels show the number of records entering each processing step."
+
+library(DiagrammeR)
+
+stream_colours <- c(
+  notifications = "#004EA8",
+  sequences = "#E61E78"
+)
+
+stream_sources <- pipeline_stats %>%
+  filter(is.na(prev_rule)) %>%
+  distinct(stream, rule, n_input) %>%
+  mutate(
+    source = paste0("Raw ", stream),
+    color = unname(stream_colours[stream])
+  )
+
+root_edges <- stream_sources %>%
+  transmute(
+    edge = sprintf(
+      '  "%s" -> "%s" [label="%s", color="%s", fontcolor="%s"];',
+      source,
+      rule,
+      format(n_input, big.mark = ","),
+      color,
+      color
+    )
+  ) %>%
+  pull(edge)
+
+pipeline_edges <- pipeline_stats %>%
+  filter(!is.na(prev_rule)) %>%
+  mutate(
+    color = unname(stream_colours[stream]),
+    edge = sprintf(
+      '  "%s" -> "%s" [label="%s", color="%s", fontcolor="%s"];',
+      prev_rule,
+      rule,
+      format(n_input, big.mark = ","),
+      color,
+      color
+    )
+  ) %>%
+  pull(edge)
+
+terminal_rules <- pipeline_stats %>%
+  filter(!rule %in% prev_rule) %>%
+  distinct(rule, n_output)
+
+terminal_edges <- terminal_rules %>%
+  transmute(
+    edge = sprintf(
+      '  "%s" -> "Analysis" [label="%s"];',
+      rule,
+      format(n_output, big.mark = ",")
+    )
+  ) %>%
+  pull(edge)
+
+source_nodes <- stream_sources %>%
+  transmute(
+    node = sprintf(
+      '  "%s" [shape=ellipse, style="filled", fillcolor="%s"];',
+      source,
+      color
+    )
+  ) %>%
+  pull(node)
+
+grViz(paste(
+  'digraph pipeline {',
+  '  rankdir=TB;',
+  '  node [shape=box, style="filled,rounded", fillcolor="#f0f0f0", fontname="Helvetica"];',
+  '  "Analysis" [shape=ellipse, style="filled", fillcolor="#d4edda"];',
+  '  edge [fontname="Helvetica", fontsize=14];',
+  paste(source_nodes, collapse = "\n"),
+  paste(root_edges, collapse = "\n"),
+  paste(pipeline_edges, collapse = "\n"),
+  paste(terminal_edges, collapse = "\n"),
+  '}',
+  sep = "\n"
+))
+```
+
+```{r}
+#| title: Tabular
+#| label: tbl-pipeline-flowchart
+#| tbl-cap: Tabular representation of the data-processing pipeline in [@fig-pipeline-flowchart].
+
+pipeline_stats %>%
+  transmute(
+    previous_step = coalesce(prev_rule, paste("Raw", stream)),
+    step = rule,
+    stream,
+    n_input,
+    n_output,
+    n_rejected
+  ) %>%
+  arrange(stream, desc(n_input), desc(n_output)) %>%
+  knitr::kable(
+    col.names = c(
+      "Previous step",
+      "Step",
+      "Stream",
+      "Input",
+      "Output",
+      "Rejected"
+    ),
+    format.args = list(big.mark = ",")
+  )
+```
+
+#### Col 2 {.tabset expandable="false"}
+
+##### Data processing pipeline
+
+1. **Raw data** consist of notifications and sequences with initials and date of birth replaced by a cryptographic hash identifier, following [@langevin_2026_distributed].
+
+2. **Validation**
+   a. **Notifications** — Relevant notification fields are formatted and retained. The calculated date of onset, derived from CD4 count, is used as the notification date.
+   b. **Sequences** — Sequence records are validated against a minimum length of `r config$sequence_qc$min_length` bases and a minimum of `r config$sequence_qc$min_valid_bases` valid A/T/G/C bases.
+
+3. **Select earliest sequence** — For each hash identifier, the earliest sample collection date is retained as a proxy for the transmitted virus. Where multiple sequences with the same hash share the same date of collection, they are excluded form linkage.
+
+4. **Link notifications and sequences** — Validated notifications and selected sequences are linked using the hash identifier. A notification can link to one or more sequences, but duplicate notification identifiers are not linked. However, since we filter to transmitted sequences in the step before, linkage is effectively one-to-one. Sequences collected before the calculated onset date or more than `r config$linkage_filters$max_lag_days` days afterwards are excluded.
+
+5. **Prepare sequence regions** — Linked _prrtin_ and _int_ sequence fields are converted independently to FASTA format. Each region is submitted to the Stanford HIVdb algorithm via sierrapy for subtype assignment and drug-resistance analysis. The subtype of _prrtin_ is taken as the subtype of a sample.
+
+6. **Alignment and HIV-TRACE clustering** — _prrtin_ sequences are aligned to the `r config$alignment$reference` reference using [cawlign](https://github.com/veg/cawlign) `r versions %>% filter(tool == "cawlign") %>% pull(version)`. The current QC step passes the aligned _prrtin_ sequences through unchanged, since these have passed QC from reference laboratories. HIV-TRACE then computes TN93 genetic distances and identifies clusters using the configured distance threshold and minimum pairwise overlap.
+
+##### Configurations
+```{r}
+#| label: supp-tools-configs
+bind_rows(
+    # tibble(tool = "sequence_qc", parameter = names(config$sequence_qc), value = unlist(config$sequence_qc)),
+    # tibble(tool = "qc", parameter = names(config$qc), value = unlist(config$qc)),
+    tibble(tool = "linkage_filters", parameter = names(config$linkage_filters), value = unlist(config$linkage_filters))
+  ) %>%
+  knitr::kable()
+```
+### Data analysis
+
+#### Column 1
+
+::: {.card title="Analysis"}
+
+**Drug Resistance**
+
+Drug resistance mutations were identified using the Stanford HIVdb algorithm via [sierrapy](https://github.com/hivdb/sierra-client) (v`r versions %>% filter(tool == "sierrapy") %>% pull(version)`), querying the HIVdb database (v`r versions %>% filter(tool == "hivdb") %>% pull(version)`) with the Sierra web service (v`r versions %>% filter(tool == "sierra") %>% pull(version)`) . High-level resistance (level `r config$sierrapy$res_cutoff`) was retained. Mutations were then filtered down to Surveillance Drug Resistance Mutations (SDRMs) using the curated tables for each drug class, accessed on 13/03/2026 [@stanford_hivdb_sdrm].
+
+**Clustering**
+
+Pairwise genetic distances were computed under the TN93 model using [HIV-TRACE](https://github.com/veg/hivtrace) (`r versions %>% filter(tool == "hivtrace") %>% pull(version)`) [@tamura_estimation_1993]. Sequences were aligned to the `r config$hivtrace$reference` reference and clustered below a distance threfhold of `r config$hivtrace$threshold`. Sequences were compared if they had a minimum pairwise overlap of `r config$hivtrace$minoverlap` bp, and ambiguities were treated with the `r config$hivtrace$ambiguities` option. Drug resistance mutations were stripped using the `lewis` option.
+
+Potential contaminants (such as clustering with the reference) and spurious transitive edges are also removed using the `--curate` ``r config$hivtrace$curate`` option and `--filter` ``r config$hivtrace$filter`` options.
+
+**Autotune**
+The choice of clustering threshold was investigated using the autotune algorithm [@weaver_auto-tune_2024]. Pairwise distances were recomputed over thresholds from 0.0 to `r config$autotune$threshold`, yielding a score that balances the number and size of clusters. Higher scores indicate more even clustering, with values above 1.9 considered preferable. The threshold used for this report is indicated in [@fig-autotune], and if the optimal threshold diverges substantially from this value, then it may need revision.
+:::
+
+#### Col 2
+
+::: {.card title="Configurations summary"}
+```{r}
+#| label: supp-tools-configs-analysis
+bind_rows(
+    tibble(tool = "hivtrace", parameter = names(config$hivtrace), value = unlist(config$hivtrace)),
+    tibble(tool = "sierrapy", parameter = names(config$sierrapy), value = unlist(config$sierrapy))
+  ) %>%
+  knitr::kable()
+```
+:::
+
+::: {.card title="Tools and versions"}
+```{r}
+#| label: supp-tools-versions
+versions %>% knitr::kable()
+```
+:::
+
+### References
+
+::: {#refs}
+:::
