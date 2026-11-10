@@ -32,8 +32,7 @@ cmd = """
 
 [tasks.preview]
 cmd = "quarto preview report/dashboard.qmd"
-
-# depends-on = ["version"]
+depends-on = ["version"]
 
 [tasks.render]
 cmd = "quarto render report/dashboard.qmd"
