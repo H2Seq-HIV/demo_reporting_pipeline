@@ -3,7 +3,7 @@
 ## Row 1 {height = 62.5%}
 
 ::: {.card title="Purpose"}
-- This is a demo version of the H2Seq NSW HIV pipeline. 
+- This is a demo version of the H2Seq HIV pipeline. 
 
 - The dashboard rendered herein includes simulated notification data simulated atop 347 openly available sequences from [Di Giallonardo et al., 2021](https://doi.org/10.1002/jia2.25655). 
 

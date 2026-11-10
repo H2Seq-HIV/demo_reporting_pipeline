@@ -1,6 +1,6 @@
 # Demo H2Seq HIV Pipeline
 
-This is a demo version of the H2Seq NSW HIV pipeline. The dashboard rendered herein includes **simulated** notification data simulated atop 347 openly available sequences from [Di Giallonardo et al., 2021](https://doi.org/10.1002/jia2.25655). It is for demonstartion purposes only, and none of the vidualisations or results here have anything to do with reality.
+This is a demo version of the H2Seq HIV pipeline. The dashboard includes only **simulated** notification data simulated atop 347 openly available sequences from [Di Giallonardo et al., 2021](https://doi.org/10.1002/jia2.25655). It is for demonstartion purposes only, and none of the vidualisations or results here have anything to do with reality.
 
 ## Demo dashboard 
 
