@@ -38,7 +38,7 @@ depends-on = ["version"]
 cmd = "quarto render report/dashboard.qmd"
 depends-on = ["version"]
 
-[tasks.render]
+[tasks.publish]
 cmd = "quarto publish gh-pages report/dashboard.qmd"
 depends-on = ["render"]
 
